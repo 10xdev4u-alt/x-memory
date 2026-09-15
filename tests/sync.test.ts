@@ -1,5 +1,6 @@
 import { clearProgress, readProgress } from "../src/lib/sync-progress.js";
-import { storedPostCount, syncBookmarks } from "../src/lib/sync.js";
+import { getRecord } from "../src/lib/db.js";
+import { storedPostCount, syncBookmarks, syncLikes } from "../src/lib/sync.js";
 import { ThrottleQueue } from "../src/lib/queue.js";
 import type { TimelineEntry, TimelinePage } from "../src/lib/timeline.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -91,5 +92,35 @@ describe("sync engine", () => {
     const queue = new ThrottleQueue({ baseDelayMs: 1, maxAttempts: 1, minIntervalMs: 0, sleep: async () => undefined });
     const result = await syncBookmarks({ dbFactory: indexedDB, maxPages: 3, queue, transport });
     expect(result.pages).toBe(3);
+  });
+});
+
+describe("likes sync", () => {
+  function likesPage(ids: string[], cursor?: string): unknown {
+    const entries = ids.map((id) => tweet(id));
+    if (cursor !== undefined) entries.push({ content: { cursorType: "Bottom", value: cursor } });
+    return { user: { result: { timeline_v2: { timeline: { instructions: [{ entries, type: "TimelineAddEntries" }] } } } } };
+  }
+
+  it("syncs with liked provenance and user variables", async () => {
+    const seenOps: string[] = [];
+    const seenVars: Record<string, unknown>[] = [];
+    const transport = {
+      fetchPage: async (op: string, variables: Record<string, unknown>) => {
+        seenOps.push(op);
+        seenVars.push(variables);
+        if (variables["cursor"] === undefined) return { data: likesPage(["l1"], "lc1") };
+        return { data: likesPage(["l2"]) };
+      },
+    };
+    const queue = new ThrottleQueue({ baseDelayMs: 1, maxAttempts: 1, minIntervalMs: 0, sleep: async () => undefined });
+    const result = await syncLikes({ dbFactory: indexedDB, queue, transport, userId: "u9" });
+    expect(result).toEqual({ pages: 2, stored: 2 });
+    expect(seenOps).toEqual(["Likes", "Likes"]);
+    expect(seenVars[0]).toMatchObject({ count: 20, userId: "u9" });
+    expect(seenVars[1]).toMatchObject({ cursor: "lc1", userId: "u9" });
+    const db = await (await import("../src/lib/db.js")).openDb(indexedDB);
+    expect(await getRecord(db, "posts", "l1")).toMatchObject({ provenance: "liked" });
+    db.close();
   });
 });
