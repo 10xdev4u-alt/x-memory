@@ -1,4 +1,6 @@
 import { isZone, type Zone } from "./lib/zone-nav.js";
+import { readSession } from "./lib/settings.js";
+import { sessionMessage } from "./lib/session-machine.js";
 
 const buttons = [...document.querySelectorAll<HTMLButtonElement>("#zone-nav [data-zone]")];
 
@@ -25,4 +27,19 @@ document.addEventListener("keydown", (event) => {
   }
 });
 
+async function renderSessionBanner(): Promise<void> {
+  const snapshot = await readSession();
+  const library = document.getElementById("library");
+  if (library === null) return;
+  let banner = document.getElementById("session-banner");
+  if (banner === null) {
+    banner = document.createElement("p");
+    banner.id = "session-banner";
+    banner.setAttribute("role", "status");
+    library.prepend(banner);
+  }
+  banner.replaceChildren(sessionMessage(snapshot.state));
+}
+
 activate("library");
+void renderSessionBanner();
