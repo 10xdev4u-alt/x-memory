@@ -1,5 +1,6 @@
 import { countRecords, openDb, putRecords } from "./db.js";
 import type { Provenance } from "./db.js";
+import { upsertAuthors } from "./authors.js";
 import { clearProgress, readProgress, type SyncProgress, writeProgress } from "./sync-progress.js";
 import { parseTimelinePage, type TimelinePage } from "./timeline.js";
 import { ThrottleQueue } from "./queue.js";
@@ -96,13 +97,25 @@ export async function syncTimeline(deps: SyncEngineDeps): Promise<SyncResult> {
         db,
         "posts",
         parsed.posts.map((post) => ({
+          authorHandle: post.authorHandle,
           authorId: post.authorId,
+          authorName: post.authorName,
           createdAt: post.createdAt,
           id: post.id,
           provenance: deps.target.provenance,
           syncedAt: Date.now(),
           text: post.text,
           url: `https://x.com/i/status/${post.id}`,
+        })),
+      );
+      await upsertAuthors(
+        db,
+        parsed.posts.map((post) => ({
+          authorHandle: post.authorHandle,
+          authorId: post.authorId,
+          authorName: post.authorName,
+          provenance: deps.target.provenance,
+          seenAt: Date.now(),
         })),
       );
       stored += parsed.posts.length;
