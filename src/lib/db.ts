@@ -6,6 +6,8 @@ export type Provenance = "saved" | "liked" | "both";
 export interface PostRecord {
   id: string;
   authorId: string;
+  authorHandle: string;
+  authorName: string;
   text: string;
   createdAt: number;
   url: string;
