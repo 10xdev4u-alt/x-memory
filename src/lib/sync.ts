@@ -1,6 +1,7 @@
 import { countRecords, openDb, putRecords } from "./db.js";
 import type { Provenance } from "./db.js";
 import { upsertAuthors } from "./authors.js";
+import { extractMedia } from "./entities.js";
 import { clearProgress, readProgress, type SyncProgress, writeProgress } from "./sync-progress.js";
 import { parseTimelinePage, type TimelinePage } from "./timeline.js";
 import { ThrottleQueue } from "./queue.js";
@@ -118,6 +119,8 @@ export async function syncTimeline(deps: SyncEngineDeps): Promise<SyncResult> {
           seenAt: Date.now(),
         })),
       );
+      const media = parsed.posts.flatMap((post) => extractMedia(post.id, post.entities, post.text));
+      if (media.length > 0) await putRecords(db, "media", media);
       stored += parsed.posts.length;
     }
     completed += parsed.posts.length;
