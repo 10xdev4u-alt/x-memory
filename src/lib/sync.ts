@@ -104,6 +104,7 @@ export async function syncTimeline(deps: SyncEngineDeps): Promise<SyncResult> {
           createdAt: post.createdAt,
           id: post.id,
           provenance: deps.target.provenance,
+          references: post.references,
           syncedAt: Date.now(),
           text: post.text,
           url: `https://x.com/i/status/${post.id}`,
