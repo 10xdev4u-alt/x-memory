@@ -10,12 +10,12 @@ function luminance(red: number, green: number, blue: number): number {
 
 export function classifyTheme(background: string): XTheme {
   const match = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(background);
-  if (match === undefined || match[1] === undefined || match[2] === undefined || match[3] === undefined) {
+  if (match === null || match[1] === undefined || match[2] === undefined || match[3] === undefined) {
     return "dark";
   }
   const light = luminance(Number(match[1]), Number(match[2]), Number(match[3]));
-  if (light > 0.75) return "light";
-  if (light > 0.25) return "dim";
+  if (light > 0.7) return "light";
+  if (light > 0.05) return "dim";
   return "dark";
 }
 
