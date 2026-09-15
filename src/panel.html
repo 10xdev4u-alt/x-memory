@@ -13,6 +13,10 @@
     <main id="library" aria-label="Library" role="tabpanel"></main>
     <section id="reader" aria-label="Reader" hidden role="tabpanel"></section>
     <section id="paper" aria-label="Paper" hidden role="tabpanel"></section>
+    <div hidden id="palette" role="dialog" aria-label="Commands">
+      <input id="palette-input" type="text" placeholder="Type a command" aria-label="Command search" />
+      <ul id="palette-list" role="listbox" aria-label="Commands"></ul>
+    </div>
     <script src="panel.js" type="module"></script>
   </body>
 </html>

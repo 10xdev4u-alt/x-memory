@@ -1,3 +1,4 @@
+import { type CommandId, filterCommands } from "./lib/commands.js";
 import { isZone, type Zone } from "./lib/zone-nav.js";
 import { readSession } from "./lib/settings.js";
 import { sessionMessage } from "./lib/session-machine.js";
@@ -21,9 +22,66 @@ for (const button of buttons) {
 }
 
 document.addEventListener("keydown", (event) => {
+  const palette = document.getElementById("palette");
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+    event.preventDefault();
+    palette?.toggleAttribute("hidden");
+    document.getElementById("palette-input")?.focus();
+    return;
+  }
+  if (event.key === "Escape") {
+    palette?.setAttribute("hidden", "");
+    return;
+  }
   if (event.key >= "1" && event.key <= "3") {
     const zone = (["library", "reader", "paper"] as const)[Number(event.key) - 1];
     if (zone !== undefined) activate(zone);
+  }
+});
+
+function runCommand(id: CommandId): void {
+  document.getElementById("palette")?.setAttribute("hidden", "");
+  switch (id) {
+    case "go-library":
+      activate("library");
+      break;
+    case "go-reader":
+      activate("reader");
+      break;
+    case "go-paper":
+      activate("paper");
+      break;
+    case "sync-now":
+    case "check-session":
+      document.dispatchEvent(new CustomEvent("xmem:command", { detail: id }));
+      break;
+  }
+}
+
+function renderPalette(query: string): void {
+  const list = document.getElementById("palette-list");
+  if (list === null) return;
+  list.replaceChildren();
+  for (const command of filterCommands(query)) {
+    const item = document.createElement("li");
+    item.setAttribute("role", "option");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.replaceChildren(`${command.title} (${command.hint})`);
+    button.addEventListener("click", () => runCommand(command.id));
+    item.append(button);
+    list.append(item);
+  }
+}
+
+document.getElementById("palette-input")?.addEventListener("input", (event) => {
+  renderPalette((event.target as HTMLInputElement).value);
+});
+
+document.getElementById("palette-input")?.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    const first = filterCommands((event.target as HTMLInputElement).value)[0];
+    if (first !== undefined) runCommand(first.id);
   }
 });
 
