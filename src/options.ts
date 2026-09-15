@@ -1,4 +1,5 @@
 import { readSession, readVersions, wipeLocalData } from "./lib/settings.js";
+import { applyTheme, readThemeOverride, type ThemeOverride, writeThemeOverride } from "./lib/theme.js";
 
 async function renderSession(): Promise<void> {
   const snapshot = await readSession();
@@ -33,5 +34,17 @@ document.getElementById("wipe-data")?.addEventListener("click", () => {
   });
 });
 
+async function renderTheme(): Promise<void> {
+  const select = document.getElementById("theme-select");
+  if (!(select instanceof HTMLSelectElement)) return;
+  select.value = await readThemeOverride();
+  select.addEventListener("change", () => {
+    const value = select.value as ThemeOverride;
+    void writeThemeOverride(value).then(() => applyTheme(document.documentElement));
+  });
+}
+
 void renderSession();
 void renderVersions();
+void renderTheme();
+void applyTheme(document.documentElement);

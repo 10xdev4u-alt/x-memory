@@ -2,6 +2,7 @@ import { type CommandId, filterCommands } from "./lib/commands.js";
 import { isZone, type Zone } from "./lib/zone-nav.js";
 import { readSession } from "./lib/settings.js";
 import { sessionMessage } from "./lib/session-machine.js";
+import { applyTheme } from "./lib/theme.js";
 
 const buttons = [...document.querySelectorAll<HTMLButtonElement>("#zone-nav [data-zone]")];
 
@@ -108,4 +109,5 @@ async function renderSessionBanner(): Promise<void> {
 }
 
 activate("library");
+void applyTheme(document.documentElement);
 void renderSessionBanner();
