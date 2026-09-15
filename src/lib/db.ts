@@ -90,6 +90,10 @@ export function getRecord<T>(db: IDBDatabase, store: StoreName, key: string): Pr
   return transact<T | undefined>(db, store, "readonly", (storage) => storage.get(key));
 }
 
+export function allRecords<T>(db: IDBDatabase, store: StoreName): Promise<T[]> {
+  return transact<T[]>(db, store, "readonly", (storage) => storage.getAll());
+}
+
 export function countRecords(db: IDBDatabase, store: StoreName): Promise<number> {
   return transact<number>(db, store, "readonly", (storage) => storage.count());
 }
