@@ -1,0 +1,8 @@
+# <type>(<scope>): <six word subject here>
+# Types: feat, fix, docs, style, refactor, test, chore, perf, ci, revert
+# Scope: sync, ui, ai, data, infra, docs, panel, graph, export
+# Subject: imperative mood, no period, exactly six words total
+#
+# [optional body] explain why, not what
+#
+# Co-authored-by: the-ai-developer <88466089+the-ai-developer@users.noreply.github.com>
