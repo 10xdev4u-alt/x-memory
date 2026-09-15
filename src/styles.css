@@ -1,0 +1,39 @@
+:root {
+  color-scheme: dark;
+}
+
+body {
+  background: #000;
+  color: #e7e9ea;
+  font-family: system-ui, sans-serif;
+  margin: 0;
+}
+
+:focus-visible {
+  outline: 2px solid #1d9bf0;
+  outline-offset: 2px;
+}
+
+#zone-nav {
+  display: flex;
+  gap: 4px;
+}
+
+#zone-nav button,
+#palette-list button {
+  background: #16181c;
+  border: 1px solid #333639;
+  border-radius: 6px;
+  color: inherit;
+  padding: 6px 10px;
+}
+
+#zone-nav button[aria-selected="true"] {
+  border-color: #1d9bf0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none;
+  }
+}

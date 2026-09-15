@@ -33,6 +33,14 @@ document.addEventListener("keydown", (event) => {
     palette?.setAttribute("hidden", "");
     return;
   }
+  if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
+    const current = buttons.findIndex((button) => button.getAttribute("aria-selected") === "true");
+    const delta = event.key === "ArrowRight" ? 1 : -1;
+    const next = buttons[(current + delta + buttons.length) % buttons.length];
+    next?.focus();
+    next?.click();
+    return;
+  }
   if (event.key >= "1" && event.key <= "3") {
     const zone = (["library", "reader", "paper"] as const)[Number(event.key) - 1];
     if (zone !== undefined) activate(zone);
