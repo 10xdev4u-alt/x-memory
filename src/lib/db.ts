@@ -1,5 +1,7 @@
 import type { PostReferences } from "./threads.js";
 
+export type PostStatus = "active" | "deleted" | "suspended";
+
 export const DB_NAME = "x-memory";
 export const DB_VERSION = 1;
 
@@ -11,6 +13,7 @@ export interface PostRecord {
   authorHandle: string;
   authorName: string;
   references: PostReferences;
+  status: PostStatus;
   text: string;
   createdAt: number;
   url: string;
@@ -108,4 +111,13 @@ export function mediaForPost(db: IDBDatabase, postId: string): Promise<MediaReco
 
 export function countRecords(db: IDBDatabase, store: StoreName): Promise<number> {
   return transact<number>(db, store, "readonly", (storage) => storage.count());
+}
+
+export function deleteRecord(db: IDBDatabase, store: StoreName, key: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, "readwrite");
+    const request = tx.objectStore(store).delete(key);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
 }

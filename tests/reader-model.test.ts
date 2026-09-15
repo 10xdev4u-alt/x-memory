@@ -9,6 +9,7 @@ const POST = {
   id: "p1",
   provenance: "both" as const,
   references: { quotedIds: [] as string[] },
+  status: "active" as const,
   syncedAt: 1,
   text: "DeepSeek kernel tricks",
   url: "https://x.com/i/status/p1",
