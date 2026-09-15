@@ -3,6 +3,7 @@ import { listAccounts, readCurrentAccount, writeCurrentAccount } from "./lib/acc
 import { isZone, type Zone } from "./lib/zone-nav.js";
 import { allRecords, getRecord, mediaForPost, openDb, type BriefRecord, type PostRecord } from "./lib/db.js";
 import { buildReaderModel, snippet } from "./lib/reader-model.js";
+import { listViews, matchView } from "./lib/views.js";
 import { readSession } from "./lib/settings.js";
 import { sessionMessage } from "./lib/session-machine.js";
 import { applyTheme } from "./lib/theme.js";
@@ -151,7 +152,46 @@ async function renderLibrary(): Promise<void> {
   if (library === null) return;
   const db = await openDb();
   const posts = await allRecords<PostRecord>(db, "posts");
+  const media = await allRecords<{ postId: string }>(db, "media");
   db.close();
+  const mediaCounts = new Map<string, number>();
+  for (const item of media) mediaCounts.set(item.postId, (mediaCounts.get(item.postId) ?? 0) + 1);
+  let controls = document.getElementById("library-controls");
+  if (controls === null) {
+    controls = document.createElement("div");
+    controls.id = "library-controls";
+    const label = document.createElement("label");
+    label.replaceChildren("View ");
+    const select = document.createElement("select");
+    select.id = "view-select";
+    select.setAttribute("aria-label", "Saved view");
+    select.addEventListener("change", () => void renderLibrary());
+    label.append(select);
+    controls.append(label);
+    library.append(controls);
+  }
+  const select = document.getElementById("view-select");
+  const views = await listViews();
+  if (select instanceof HTMLSelectElement) {
+    const current = select.value;
+    select.replaceChildren();
+    const all = document.createElement("option");
+    all.value = "";
+    all.replaceChildren("All posts");
+    select.append(all);
+    for (const view of views) {
+      const option = document.createElement("option");
+      option.value = view.id;
+      option.replaceChildren(view.name);
+      select.append(option);
+    }
+    if (views.some((view) => view.id === current)) select.value = current;
+  }
+  const active = views.find((view) => view.id === (select instanceof HTMLSelectElement ? select.value : ""));
+  const visible =
+    active === undefined
+      ? posts
+      : posts.filter((post) => matchView(post, active, { mediaCount: mediaCounts.get(post.id) ?? 0 }));
   let list = document.getElementById("post-list");
   if (list === null) {
     list = document.createElement("ul");
@@ -159,7 +199,7 @@ async function renderLibrary(): Promise<void> {
     library.append(list);
   }
   list.replaceChildren();
-  for (const post of posts.slice(0, 100)) {
+  for (const post of visible.slice(0, 100)) {
     const item = document.createElement("li");
     const button = document.createElement("button");
     button.type = "button";
