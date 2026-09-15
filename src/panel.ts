@@ -1,4 +1,5 @@
 import { type CommandId, filterCommands } from "./lib/commands.js";
+import { listAccounts, readCurrentAccount, writeCurrentAccount } from "./lib/accounts.js";
 import { isZone, type Zone } from "./lib/zone-nav.js";
 import { readSession } from "./lib/settings.js";
 import { sessionMessage } from "./lib/session-machine.js";
@@ -108,6 +109,36 @@ async function renderSessionBanner(): Promise<void> {
   banner.replaceChildren(sessionMessage(snapshot.state));
 }
 
+async function renderAccounts(): Promise<void> {
+  const current = document.getElementById("account-current");
+  const list = document.getElementById("account-list");
+  if (current === null || list === null) return;
+  const active = await readCurrentAccount();
+  const accounts = await listAccounts();
+  current.replaceChildren(active === undefined ? "No account" : `Account ${active}`);
+  list.replaceChildren();
+  for (const account of accounts) {
+    const item = document.createElement("li");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.replaceChildren(account.handle ?? `Account ${account.id}`);
+    button.addEventListener("click", () => {
+      void writeCurrentAccount(account.id).then(() => {
+        document.dispatchEvent(new CustomEvent("xmem:account", { detail: account.id }));
+        list.setAttribute("hidden", "");
+        void renderAccounts();
+      });
+    });
+    item.append(button);
+    list.append(item);
+  }
+}
+
+document.getElementById("account-current")?.addEventListener("click", () => {
+  document.getElementById("account-list")?.toggleAttribute("hidden");
+});
+
 activate("library");
 void applyTheme(document.documentElement);
 void renderSessionBanner();
+void renderAccounts();
