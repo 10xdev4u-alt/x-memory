@@ -1,8 +1,10 @@
 import { type CommandId, filterCommands } from "./lib/commands.js";
 import { listAccounts, readCurrentAccount, writeCurrentAccount } from "./lib/accounts.js";
 import { isZone, type Zone } from "./lib/zone-nav.js";
-import { allRecords, getRecord, mediaForPost, openDb, type BriefRecord, type PostRecord } from "./lib/db.js";
+import { allRecords, getRecord, mediaForPost, openDb, type BriefRecord, type MediaRecord, type PostRecord } from "./lib/db.js";
+import { postsToMarkdown } from "./lib/export.js";
 import { buildReaderModel, snippet } from "./lib/reader-model.js";
+import { Selection } from "./lib/selection.js";
 import { listViews, matchView } from "./lib/views.js";
 import { readSession } from "./lib/settings.js";
 import { sessionMessage } from "./lib/session-machine.js";
@@ -147,6 +149,12 @@ void renderSessionBanner();
 void renderAccounts();
 void renderLibrary();
 
+const selection = new Selection();
+
+function refreshBulk(): void {
+  document.getElementById("bulk-bar")?.replaceChildren(`Selected ${selection.size}`);
+}
+
 async function renderLibrary(): Promise<void> {
   const library = document.getElementById("library");
   if (library === null) return;
@@ -168,6 +176,16 @@ async function renderLibrary(): Promise<void> {
     select.addEventListener("change", () => void renderLibrary());
     label.append(select);
     controls.append(label);
+    const bulk = document.createElement("div");
+    bulk.id = "bulk-bar";
+    bulk.setAttribute("role", "status");
+    const exportButton = document.createElement("button");
+    exportButton.type = "button";
+    exportButton.replaceChildren("Export selected");
+    exportButton.addEventListener("click", () => {
+      void exportSelection(selection).then(refreshBulk);
+    });
+    controls.append(bulk, exportButton);
     library.append(controls);
   }
   const select = document.getElementById("view-select");
@@ -201,15 +219,50 @@ async function renderLibrary(): Promise<void> {
   list.replaceChildren();
   for (const post of visible.slice(0, 100)) {
     const item = document.createElement("li");
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.setAttribute("aria-label", `Select post ${post.id}`);
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) selection.add(post.id);
+      else selection.remove(post.id);
+      refreshBulk();
+    });
     const button = document.createElement("button");
     button.type = "button";
     button.replaceChildren(`${post.authorHandle !== "" ? `@${post.authorHandle}` : post.authorId}: ${snippet(post.text, 100)}`);
     button.addEventListener("click", () => {
       document.dispatchEvent(new CustomEvent("xmem:open-post", { detail: post.id }));
     });
-    item.append(button);
+    item.append(checkbox, button);
     list.append(item);
   }
+  refreshBulk();
+}
+
+async function exportSelection(selection: Selection): Promise<void> {
+  const ids = selection.list();
+  if (ids.length === 0) return;
+  const db = await openDb();
+  const posts: PostRecord[] = [];
+  for (const id of ids) {
+    const post = await getRecord<PostRecord>(db, "posts", id);
+    if (post !== undefined) posts.push(post);
+  }
+  const briefs = new Map<string, string>();
+  const mediaByPost = new Map<string, MediaRecord[]>();
+  for (const post of posts) {
+    const brief = await getRecord<BriefRecord>(db, "briefs", post.id);
+    if (brief !== undefined) briefs.set(post.id, brief.text);
+    mediaByPost.set(post.id, await mediaForPost(db, post.id));
+  }
+  db.close();
+  const blob = new Blob([postsToMarkdown(posts, briefs, mediaByPost)], { type: "text/markdown" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "x-memory-selection.md";
+  link.click();
+  URL.revokeObjectURL(url);
 }
 
 async function openPost(postId: string): Promise<void> {
