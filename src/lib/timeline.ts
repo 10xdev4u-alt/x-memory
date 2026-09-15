@@ -1,3 +1,5 @@
+import type { RawEntities } from "./entities.js";
+
 export interface TimelineEntry {
   content?: {
     cursorType?: string;
@@ -7,6 +9,7 @@ export interface TimelineEntry {
         result?: {
           legacy?: {
             created_at?: string;
+            entities?: RawEntities;
             full_text?: string;
             id_str?: string;
             user_id_str?: string;
@@ -37,6 +40,7 @@ export interface ParsedPost {
   authorId: string;
   authorName: string;
   createdAt: number;
+  entities?: RawEntities;
   id: string;
   text: string;
 }
@@ -51,7 +55,7 @@ function parseEntry(entry: TimelineEntry): ParsedPost | undefined {
   const legacy = result?.legacy;
   if (legacy?.id_str === undefined || legacy.full_text === undefined) return undefined;
   const user = result?.core?.user_results?.result?.legacy;
-  return {
+  const post: ParsedPost = {
     authorHandle: user?.screen_name ?? "",
     authorId: legacy.user_id_str ?? "",
     authorName: user?.name ?? "",
@@ -59,6 +63,8 @@ function parseEntry(entry: TimelineEntry): ParsedPost | undefined {
     id: legacy.id_str,
     text: legacy.full_text,
   };
+  if (legacy.entities !== undefined) post.entities = legacy.entities;
+  return post;
 }
 
 export function parseTimelinePage(page: TimelinePage): ParsedPage {
