@@ -5,9 +5,14 @@
     <title>x-memory</title>
   </head>
   <body>
-    <main id="library" aria-label="Library"></main>
-    <section id="reader" aria-label="Reader"></section>
-    <section id="paper" aria-label="Paper"></section>
+    <nav aria-label="Zones" id="zone-nav">
+      <button aria-controls="library" aria-selected="true" data-zone="library" role="tab">Library</button>
+      <button aria-controls="reader" aria-selected="false" data-zone="reader" role="tab" tabindex="-1">Reader</button>
+      <button aria-controls="paper" aria-selected="false" data-zone="paper" role="tab" tabindex="-1">Paper</button>
+    </nav>
+    <main id="library" aria-label="Library" role="tabpanel"></main>
+    <section id="reader" aria-label="Reader" hidden role="tabpanel"></section>
+    <section id="paper" aria-label="Paper" hidden role="tabpanel"></section>
     <script src="panel.js" type="module"></script>
   </body>
 </html>
