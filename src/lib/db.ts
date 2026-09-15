@@ -1,3 +1,5 @@
+import type { PostReferences } from "./threads.js";
+
 export const DB_NAME = "x-memory";
 export const DB_VERSION = 1;
 
@@ -8,6 +10,7 @@ export interface PostRecord {
   authorId: string;
   authorHandle: string;
   authorName: string;
+  references: PostReferences;
   text: string;
   createdAt: number;
   url: string;

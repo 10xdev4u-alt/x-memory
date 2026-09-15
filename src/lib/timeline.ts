@@ -1,4 +1,5 @@
 import type { RawEntities } from "./entities.js";
+import type { PostReferences } from "./threads.js";
 
 export interface TimelineEntry {
   content?: {
@@ -12,6 +13,8 @@ export interface TimelineEntry {
             entities?: RawEntities;
             full_text?: string;
             id_str?: string;
+            in_reply_to_status_id_str?: string;
+            quoted_status_id_str?: string;
             user_id_str?: string;
           };
           core?: {
@@ -42,6 +45,7 @@ export interface ParsedPost {
   createdAt: number;
   entities?: RawEntities;
   id: string;
+  references: PostReferences;
   text: string;
 }
 
@@ -61,8 +65,14 @@ function parseEntry(entry: TimelineEntry): ParsedPost | undefined {
     authorName: user?.name ?? "",
     createdAt: Date.parse(legacy.created_at ?? "") || 0,
     id: legacy.id_str,
+    references: {
+      quotedIds: legacy.quoted_status_id_str === undefined ? [] : [legacy.quoted_status_id_str],
+    },
     text: legacy.full_text,
   };
+  if (legacy.in_reply_to_status_id_str !== undefined) {
+    post.references = { quotedIds: post.references.quotedIds, replyToId: legacy.in_reply_to_status_id_str };
+  }
   if (legacy.entities !== undefined) post.entities = legacy.entities;
   return post;
 }

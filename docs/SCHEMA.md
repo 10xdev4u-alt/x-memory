@@ -4,7 +4,7 @@ Database `x-memory`, version 1. Four stores, all keyed for upsert sync.
 
 | Store | Key | Indexes | Holds |
 |---|---|---|---|
-| posts | id | by-author, by-provenance | post text, author ref plus cached handle and name, timestamps, saved/liked/both |
+| posts | id | by-author, by-provenance | post text, author ref plus cached handle and name, quote and reply references, timestamps, saved/liked/both |
 | authors | id | none | handle, name, save/like counts, last seen |
 | media | id | by-post | images, videos, links per post |
 | briefs | postId | none | Grok brief text plus creation time |
