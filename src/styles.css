@@ -2,6 +2,32 @@
   color-scheme: dark;
 }
 
+:root[data-theme="light"] {
+  color-scheme: light;
+}
+
+:root[data-theme="light"] body {
+  background: #fff;
+  color: #0f1419;
+}
+
+:root[data-theme="light"] #zone-nav button,
+:root[data-theme="light"] #palette-list button {
+  background: #eff3f4;
+  border-color: #cfd9de;
+}
+
+:root[data-theme="dim"] body {
+  background: #15202b;
+  color: #e7e9ea;
+}
+
+:root[data-theme="dim"] #zone-nav button,
+:root[data-theme="dim"] #palette-list button {
+  background: #1e2732;
+  border-color: #38444d;
+}
+
 body {
   background: #000;
   color: #e7e9ea;
