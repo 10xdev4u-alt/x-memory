@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>x-memory options</title>
+  </head>
+  <body>
+    <h1>x-memory settings</h1>
+    <section aria-label="Session status" id="session-card">
+      <h2>Session</h2>
+      <p id="session-state">Checking session.</p>
+      <button id="session-check" type="button">Check now</button>
+    </section>
+    <section aria-label="Sync controls" id="sync-card">
+      <h2>Sync</h2>
+      <button id="sync-start" type="button">Sync now</button>
+      <p id="sync-state">Sync engine lands with milestones M1 and M2.</p>
+    </section>
+    <section aria-label="Versions" id="version-card">
+      <h2>Versions</h2>
+      <p id="version-info">Loading versions.</p>
+    </section>
+    <section aria-label="Danger zone" id="danger-card">
+      <h2>Danger zone</h2>
+      <button id="wipe-data" type="button">Wipe local data</button>
+      <p id="wipe-state"></p>
+    </section>
+    <script src="options.js" type="module"></script>
+  </body>
+</html>
