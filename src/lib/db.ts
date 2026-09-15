@@ -94,6 +94,15 @@ export function allRecords<T>(db: IDBDatabase, store: StoreName): Promise<T[]> {
   return transact<T[]>(db, store, "readonly", (storage) => storage.getAll());
 }
 
+export function mediaForPost(db: IDBDatabase, postId: string): Promise<MediaRecord[]> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("media", "readonly");
+    const request = tx.objectStore("media").index("by-post").getAll(postId);
+    request.onsuccess = () => resolve(request.result as MediaRecord[]);
+    request.onerror = () => reject(request.error);
+  });
+}
+
 export function countRecords(db: IDBDatabase, store: StoreName): Promise<number> {
   return transact<number>(db, store, "readonly", (storage) => storage.count());
 }

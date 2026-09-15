@@ -1,6 +1,8 @@
 import { type CommandId, filterCommands } from "./lib/commands.js";
 import { listAccounts, readCurrentAccount, writeCurrentAccount } from "./lib/accounts.js";
 import { isZone, type Zone } from "./lib/zone-nav.js";
+import { allRecords, getRecord, mediaForPost, openDb, type BriefRecord, type PostRecord } from "./lib/db.js";
+import { buildReaderModel, snippet } from "./lib/reader-model.js";
 import { readSession } from "./lib/settings.js";
 import { sessionMessage } from "./lib/session-machine.js";
 import { applyTheme } from "./lib/theme.js";
@@ -142,3 +144,92 @@ activate("library");
 void applyTheme(document.documentElement);
 void renderSessionBanner();
 void renderAccounts();
+void renderLibrary();
+
+async function renderLibrary(): Promise<void> {
+  const library = document.getElementById("library");
+  if (library === null) return;
+  const db = await openDb();
+  const posts = await allRecords<PostRecord>(db, "posts");
+  db.close();
+  let list = document.getElementById("post-list");
+  if (list === null) {
+    list = document.createElement("ul");
+    list.id = "post-list";
+    library.append(list);
+  }
+  list.replaceChildren();
+  for (const post of posts.slice(0, 100)) {
+    const item = document.createElement("li");
+    const button = document.createElement("button");
+    button.type = "button";
+    button.replaceChildren(`${post.authorHandle !== "" ? `@${post.authorHandle}` : post.authorId}: ${snippet(post.text, 100)}`);
+    button.addEventListener("click", () => {
+      document.dispatchEvent(new CustomEvent("xmem:open-post", { detail: post.id }));
+    });
+    item.append(button);
+    list.append(item);
+  }
+}
+
+async function openPost(postId: string): Promise<void> {
+  const reader = document.getElementById("reader");
+  if (reader === null) return;
+  const db = await openDb();
+  const post = await getRecord<PostRecord>(db, "posts", postId);
+  if (post === undefined) {
+    db.close();
+    return;
+  }
+  const media = await mediaForPost(db, postId);
+  const brief = await getRecord<BriefRecord>(db, "briefs", postId);
+  db.close();
+  const model = buildReaderModel(post, media, brief?.text);
+  reader.replaceChildren();
+  const heading = document.createElement("h2");
+  heading.replaceChildren(model.authorLine);
+  const meta = document.createElement("p");
+  meta.replaceChildren(`${model.timeLine} · ${model.provenanceLabel}`);
+  const body = document.createElement("p");
+  body.replaceChildren(model.text);
+  reader.append(heading, meta, body);
+  if (model.brief !== undefined) {
+    const quote = document.createElement("blockquote");
+    quote.replaceChildren(model.brief);
+    reader.append(quote);
+  }
+  if (model.media.length > 0) {
+    const list = document.createElement("ul");
+    for (const item of model.media) {
+      const entry = document.createElement("li");
+      const link = document.createElement("a");
+      link.href = item.url;
+      link.target = "_blank";
+      link.rel = "noreferrer";
+      link.replaceChildren(`${item.kind}: ${item.url}`);
+      entry.append(link);
+      list.append(entry);
+    }
+    reader.append(list);
+  }
+  const actions = document.createElement("p");
+  const open = document.createElement("a");
+  open.href = model.originalUrl;
+  open.target = "_blank";
+  open.rel = "noreferrer";
+  open.replaceChildren("Open original");
+  const copy = document.createElement("button");
+  copy.type = "button";
+  copy.replaceChildren("Copy link");
+  copy.addEventListener("click", () => {
+    void navigator.clipboard.writeText(model.originalUrl).then(() => copy.replaceChildren("Copied"));
+  });
+  actions.append(open, " ", copy);
+  reader.append(actions);
+}
+
+document.addEventListener("xmem:open-post", (event) => {
+  const postId = (event as CustomEvent).detail as string;
+  activate("reader");
+  void openPost(postId);
+});
