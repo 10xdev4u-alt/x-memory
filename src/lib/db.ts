@@ -39,9 +39,9 @@ export interface BriefRecord {
 
 export type StoreName = "posts" | "authors" | "media" | "briefs";
 
-export function openDb(factory: IDBFactory = indexedDB): Promise<IDBDatabase> {
+export function openDb(factory: IDBFactory = indexedDB, name: string = DB_NAME): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
-    const request = factory.open(DB_NAME, DB_VERSION);
+    const request = factory.open(name, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains("posts")) {
