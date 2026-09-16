@@ -1,6 +1,7 @@
 import { readSession, readVersions, wipeLocalData } from "./lib/settings.js";
 import { applyTheme, readThemeOverride, type ThemeOverride, writeThemeOverride } from "./lib/theme.js";
 import { createBackup, restoreBackup } from "./lib/backup.js";
+import { isTelemetryEnabled, setTelemetryEnabled } from "./lib/telemetry.js";
 
 async function renderSession(): Promise<void> {
   const snapshot = await readSession();
@@ -49,6 +50,16 @@ void renderSession();
 void renderVersions();
 void renderTheme();
 void applyTheme(document.documentElement);
+void renderTelemetry();
+
+async function renderTelemetry(): Promise<void> {
+  const toggle = document.getElementById("telemetry-toggle");
+  if (!(toggle instanceof HTMLInputElement)) return;
+  toggle.checked = await isTelemetryEnabled();
+  toggle.addEventListener("change", () => {
+    void setTelemetryEnabled(toggle.checked);
+  });
+}
 
 function backupStatus(message: string): void {
   document.getElementById("backup-state")?.replaceChildren(message);
