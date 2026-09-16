@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const page = readFileSync("landing/index.html", "utf8");
@@ -25,5 +25,17 @@ describe("landing", () => {
     expect(demo).toContain("demo-play");
     expect(demo).toContain("prefers-reduced-motion");
     expect(demo.match(/Sync pulls|Briefs land|prediction resolves|Morning Paper|Playback/)?.length).toBeGreaterThan(0);
+  });
+
+  it("ships crawler files and stays featherweight", () => {
+    expect(existsSync("landing/robots.txt")).toBe(true);
+    expect(existsSync("landing/sitemap.xml")).toBe(true);
+    expect(page).toContain('property="og:title"');
+    expect(page).toContain('name="twitter:card"');
+    expect(page).toContain('name="theme-color"');
+    const total = ["index.html", "styles.css", "demo.js"]
+      .map((file) => statSync(`landing/${file}`).size)
+      .reduce((sum, size) => sum + size, 0);
+    expect(total).toBeLessThan(15 * 1024);
   });
 });
