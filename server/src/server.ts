@@ -1,4 +1,5 @@
 import { createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { createHash } from "node:crypto";
 
 export interface PublicCollection {
   description?: string;
@@ -23,14 +24,28 @@ export interface PublicBoard {
   updatedAt: number;
 }
 
+export interface AbuseReport {
+  at: number;
+  id: string;
+  kind: string;
+  reason: string;
+  reporter: string;
+}
+
 export interface ApiStore {
   boards: Map<string, PublicBoard>;
   collections: Map<string, PublicCollection>;
+  owners: Map<string, string>;
   profiles: Map<string, PublicProfile>;
+  reports: AbuseReport[];
 }
 
 export function memoryStore(): ApiStore {
-  return { boards: new Map(), collections: new Map(), profiles: new Map() };
+  return { boards: new Map(), collections: new Map(), owners: new Map(), profiles: new Map(), reports: [] };
+}
+
+export function ownerHash(key: string): string {
+  return createHash("sha256").update(key).digest("hex");
 }
 
 export interface ApiOptions {
@@ -141,6 +156,54 @@ export function createApiServer(store: ApiStore, options: ApiOptions): Server {
         send(response, 200, { ok: true });
         return;
       }
+      const auth = request.headers["authorization"] ?? "";
+      const key = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+      if (request.method === "POST" && url.pathname === "/v1/reports") {
+        if (!options.keys.has(key)) {
+          send(response, 401, { error: "unauthorized" });
+          return;
+        }
+        if (!checkRate(`write:${key}`, now)) {
+          send(response, 429, { error: "rate limited" });
+          return;
+        }
+        let body: unknown;
+        try {
+          body = await readBody(request, maxBody);
+        } catch (error) {
+          send(response, 400, { error: error instanceof Error ? error.message : "bad body" });
+          return;
+        }
+        if (
+          !isRecord(body) ||
+          (body["kind"] !== "collections" && body["kind"] !== "profiles" && body["kind"] !== "boards") ||
+          typeof body["id"] !== "string" ||
+          body["id"] === "" ||
+          typeof body["reason"] !== "string" ||
+          body["reason"].length < 1 ||
+          body["reason"].length > 500
+        ) {
+          send(response, 400, { error: "invalid report" });
+          return;
+        }
+        store.reports.push({
+          at: now,
+          id: body["id"],
+          kind: body["kind"],
+          reason: body["reason"],
+          reporter: ownerHash(key),
+        });
+        send(response, 200, { ok: true });
+        return;
+      }
+      if (request.method === "GET" && url.pathname === "/v1/reports") {
+        if (!options.keys.has(key)) {
+          send(response, 401, { error: "unauthorized" });
+          return;
+        }
+        send(response, 200, { reports: store.reports });
+        return;
+      }
       const match = /^\/(v1)\/(collections|profiles|boards)\/([A-Za-z0-9_-]{1,120})$/.exec(url.pathname);
       if (match === null) {
         send(response, 404, { error: "not found" });
@@ -165,18 +228,33 @@ export function createApiServer(store: ApiStore, options: ApiOptions): Server {
         send(response, 200, doc);
         return;
       }
-      if (request.method !== "PUT") {
+      if (request.method !== "PUT" && request.method !== "DELETE") {
         send(response, 405, { error: "method not allowed" });
         return;
       }
-      const auth = request.headers["authorization"] ?? "";
-      const key = auth.startsWith("Bearer ") ? auth.slice(7) : "";
       if (!options.keys.has(key)) {
         send(response, 401, { error: "unauthorized" });
         return;
       }
       if (!checkRate(`write:${key}`, now)) {
         send(response, 429, { error: "rate limited" });
+        return;
+      }
+      const docKey = `${kind}:${id}`;
+      if (request.method === "DELETE") {
+        const map =
+          kind === "collections" ? store.collections : kind === "profiles" ? store.profiles : store.boards;
+        if (!map.has(id)) {
+          send(response, 404, { error: "not found" });
+          return;
+        }
+        if (store.owners.get(docKey) !== ownerHash(key)) {
+          send(response, 403, { error: "not the owner" });
+          return;
+        }
+        map.delete(id);
+        store.owners.delete(docKey);
+        send(response, 200, { ok: true });
         return;
       }
       let body: unknown;
@@ -192,16 +270,19 @@ export function createApiServer(store: ApiStore, options: ApiOptions): Server {
       }
       if (kind === "collections" && validCollection(body)) {
         store.collections.set(id, body);
+        store.owners.set(docKey, ownerHash(key));
         send(response, 200, { ok: true });
         return;
       }
       if (kind === "profiles" && validProfile(body)) {
         store.profiles.set(id, body);
+        store.owners.set(docKey, ownerHash(key));
         send(response, 200, { ok: true });
         return;
       }
       if (kind === "boards" && validBoard(body)) {
         store.boards.set(id, body);
+        store.owners.set(docKey, ownerHash(key));
         send(response, 200, { ok: true });
         return;
       }
