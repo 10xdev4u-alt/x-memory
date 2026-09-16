@@ -33,4 +33,16 @@ describe("taxonomy", () => {
   it("handles empty input", () => {
     expect(clusterPosts([])).toEqual([]);
   });
+
+  it("ignores ultra-common signals instead of mega-clustering", () => {
+    const posts = Array.from({ length: 60 }, (_, i) => ({
+      authorHandle: `u${i}`,
+      id: `p${i}`,
+      text: `kernel notes number ${i} filler words here`,
+    }));
+    const clusters = clusterPosts(posts);
+    for (const cluster of clusters) {
+      expect(cluster.postIds.length).toBeLessThan(60);
+    }
+  });
 });

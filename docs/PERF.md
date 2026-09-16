@@ -1,0 +1,26 @@
+# Performance notes
+
+Measured with `node scripts/bench.mjs` on synthetic corpora. Numbers move with hardware, trends matter more.
+
+## Current figures
+
+| Corpus | Index build | 50 searches | Taxonomy | Topics x1000 |
+|---|---|---|---|---|
+| 1,000 posts | 24ms | 35ms | 97ms | 6ms |
+| 5,000 posts | 88ms | 201ms | 825ms | 5ms |
+| 20,000 posts | 354ms | 726ms | 11s | 8ms |
+
+Search stays interactive past 20k posts. Index builds are one-time per session.
+
+## Design rules that keep it fast
+
+- Clustering runs in background jobs, never on the render path.
+- Signals shared by more than five percent of the corpus do not cluster. Common words carry no grouping value and explode candidate pairs on dense data. This cap fixed a crash at 20k posts.
+- Library lists render at most 100 rows. Full scans happen in workers with progress callbacks.
+- Media lookups use the by-post index, never full scans.
+- Briefs, claims, and verdicts cache forever. Paid and slow work never repeats.
+
+## Known limits
+
+- Taxonomy past 20k posts wants chunking or a worker thread. File an issue with corpus size when it bites.
+- Sync writes per page, not per post, to keep transactions short.
