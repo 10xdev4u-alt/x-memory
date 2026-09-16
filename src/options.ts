@@ -1,5 +1,6 @@
 import { readSession, readVersions, wipeLocalData } from "./lib/settings.js";
 import { applyTheme, readThemeOverride, type ThemeOverride, writeThemeOverride } from "./lib/theme.js";
+import { createBackup, restoreBackup } from "./lib/backup.js";
 
 async function renderSession(): Promise<void> {
   const snapshot = await readSession();
@@ -48,3 +49,34 @@ void renderSession();
 void renderVersions();
 void renderTheme();
 void applyTheme(document.documentElement);
+
+function backupStatus(message: string): void {
+  document.getElementById("backup-state")?.replaceChildren(message);
+}
+
+document.getElementById("backup-export")?.addEventListener("click", () => {
+  void createBackup({})
+    .then((raw) => {
+      const blob = new Blob([raw], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "x-memory-backup.json";
+      link.click();
+      URL.revokeObjectURL(url);
+      backupStatus("Backup downloaded.");
+    })
+    .catch((error: unknown) => backupStatus(`Backup failed: ${String(error)}`));
+});
+
+document.getElementById("backup-import")?.addEventListener("change", (event) => {
+  const input = event.target;
+  if (!(input instanceof HTMLInputElement) || input.files?.[0] === undefined) return;
+  const file = input.files[0];
+  void file
+    .text()
+    .then((raw) => restoreBackup(raw, {}))
+    .then((result) => backupStatus(`Restored ${result.posts} posts, ${result.briefs} briefs, ${result.media} media.`))
+    .catch(() => backupStatus("Restore failed. The file is not a valid backup."));
+  input.value = "";
+});

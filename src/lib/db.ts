@@ -121,3 +121,12 @@ export function deleteRecord(db: IDBDatabase, store: StoreName, key: string): Pr
     request.onerror = () => reject(request.error);
   });
 }
+
+export function clearStore(db: IDBDatabase, store: StoreName): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(store, "readwrite");
+    const request = tx.objectStore(store).clear();
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
