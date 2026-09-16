@@ -23,6 +23,7 @@ Local identity is repo-scoped. Never set it global. Never rewrite it.
 ## Issue-first law
 
 - One issue per branch, one branch per issue. Issue numbers ride in branches, footers, and PRs.
+- Confirm the issue number plus its title through the API before writing any Closes footer. Memory of numbers is not a source.
 - 70-issue blitz precedes all code. New work starts as an issue or it does not start.
 
 ## PR lifecycle
