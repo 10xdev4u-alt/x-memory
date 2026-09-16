@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const page = readFileSync("landing/index.html", "utf8");
+const demo = readFileSync("landing/demo.js", "utf8");
 
 describe("landing", () => {
   it("covers every proof point section", () => {
@@ -18,5 +19,11 @@ describe("landing", () => {
   it("loads styles and demo script relatively", () => {
     expect(page).toContain('href="styles.css"');
     expect(page).toContain('src="demo.js"');
+  });
+
+  it("scripts a five-step demo with motion respect", () => {
+    expect(demo).toContain("demo-play");
+    expect(demo).toContain("prefers-reduced-motion");
+    expect(demo.match(/Sync pulls|Briefs land|prediction resolves|Morning Paper|Playback/)?.length).toBeGreaterThan(0);
   });
 });
