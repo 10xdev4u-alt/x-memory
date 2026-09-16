@@ -5,6 +5,7 @@ import { allRecords, getRecord, mediaForPost, openDb, type BriefRecord, type Med
 import { postsToMarkdown } from "./lib/export.js";
 import { buildReaderModel, snippet } from "./lib/reader-model.js";
 import { createCollection, forkCollection, listCollections } from "./lib/collections.js";
+import { canShareInline, importSharedPackage, packageCollection, parseSharedLink, shareLink } from "./lib/sharing.js";
 import { buildTasteProfile } from "./lib/profile.js";
 import { loopCounts, resolvePost } from "./lib/loops.js";
 import { Selection } from "./lib/selection.js";
@@ -208,11 +209,94 @@ async function renderCollections(activeId: string | null): Promise<string | null
     fork.addEventListener("click", () => {
       void forkCollection(collection.id, `${collection.name} (fork)`, Date.now()).then(() => void renderLibrary(selected));
     });
-    item.append(open, " ", fork);
+    const share = document.createElement("button");
+    share.type = "button";
+    share.replaceChildren("Share");
+    share.setAttribute("aria-label", `Share ${collection.name}`);
+    share.addEventListener("click", () => {
+      void shareCollection(collection.id).then((link) => {
+        if (link === undefined) {
+          share.replaceChildren("Too big");
+          return;
+        }
+        void navigator.clipboard.writeText(link).then(() => share.replaceChildren("Copied"));
+      });
+    });
+    item.append(open, " ", fork, " ", share);
     list.append(item);
   }
   section.append(list);
+  const importForm = document.createElement("form");
+  const importInput = document.createElement("input");
+  importInput.type = "text";
+  importInput.placeholder = "Paste a shared link";
+  importInput.setAttribute("aria-label", "Shared collection link");
+  const importButton = document.createElement("button");
+  importButton.type = "submit";
+  importButton.replaceChildren("Import");
+  importForm.append(importInput, importButton);
+  const importStatus = document.createElement("p");
+  importStatus.setAttribute("role", "status");
+  importForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const link = importInput.value.trim();
+    if (link === "") return;
+    void importSharedLink(link).then((result) => {
+      importStatus.replaceChildren(result === undefined ? "That link did not parse." : `Imported ${result}.`);
+      void renderLibrary(selected);
+    });
+  });
+  section.append(importForm, importStatus);
   return selected;
+}
+
+async function shareCollection(collectionId: string): Promise<string | undefined> {
+  const db = await openDb();
+  const collections = await listCollections();
+  const collection = collections.find((entry) => entry.id === collectionId);
+  if (collection === undefined) {
+    db.close();
+    return undefined;
+  }
+  const posts = [];
+  for (const postId of collection.postIds) {
+    const post = await getRecord<PostRecord>(db, "posts", postId);
+    if (post === undefined) continue;
+    posts.push(post);
+  }
+  const briefs: Record<string, string> = {};
+  for (const post of posts) {
+    const brief = await getRecord<BriefRecord>(db, "briefs", post.id);
+    if (brief !== undefined) briefs[post.id] = brief.text;
+  }
+  db.close();
+  const pkg = packageCollection(
+    collection.id,
+    collection.name,
+    collection.description,
+    posts.map((post) => ({
+      authorHandle: post.authorHandle,
+      authorName: post.authorName,
+      createdAt: post.createdAt,
+      id: post.id,
+      text: post.text,
+      url: post.url,
+    })),
+    briefs,
+  );
+  if (!canShareInline(pkg)) return undefined;
+  return shareLink(pkg);
+}
+
+async function importSharedLink(link: string): Promise<string | undefined> {
+  let pkg;
+  try {
+    pkg = parseSharedLink(link);
+  } catch {
+    return undefined;
+  }
+  const result = await importSharedPackage(pkg);
+  return `${result.posts} posts in a new collection`;
 }
 
 async function renderProfile(): Promise<void> {
