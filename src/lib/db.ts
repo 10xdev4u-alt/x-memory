@@ -3,7 +3,7 @@ import type { PostReferences } from "./threads.js";
 export type PostStatus = "active" | "deleted" | "suspended";
 
 export const DB_NAME = "x-memory";
-export const DB_VERSION = 3;
+export const DB_VERSION = 4;
 
 export type Provenance = "saved" | "liked" | "both";
 
@@ -45,7 +45,7 @@ export interface BriefRecord {
   createdAt: number;
 }
 
-export type StoreName = "posts" | "authors" | "media" | "briefs" | "claims" | "predictions";
+export type StoreName = "posts" | "authors" | "media" | "briefs" | "claims" | "predictions" | "review";
 
 export interface ClaimRecord {
   checkedAt: number;
@@ -68,6 +68,12 @@ export interface PredictionRecord {
   status: PredictionStatus;
   targetDate?: number;
   text: string;
+}
+
+export interface ReviewRecord {
+  dueAt: number;
+  intervalDays: number;
+  postId: string;
 }
 
 export function openDb(factory: IDBFactory = indexedDB, name: string = DB_NAME): Promise<IDBDatabase> {
@@ -99,6 +105,10 @@ export function openDb(factory: IDBFactory = indexedDB, name: string = DB_NAME):
         const predictions = db.createObjectStore("predictions", { keyPath: "id" });
         predictions.createIndex("by-post", "postId", { unique: false });
         predictions.createIndex("by-status", "status", { unique: false });
+      }
+      if (!db.objectStoreNames.contains("review")) {
+        const review = db.createObjectStore("review", { keyPath: "postId" });
+        review.createIndex("by-due", "dueAt", { unique: false });
       }
     };
     request.onsuccess = () => resolve(request.result);
