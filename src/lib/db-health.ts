@@ -42,15 +42,7 @@ export async function assessDb(factory: IDBFactory = indexedDB, name: string = D
   if (missing.length === 0 && snapshot.version === DB_VERSION) {
     return { detail: "All stores present at current version.", status: "healthy" };
   }
-  if (snapshot.stores.length === 0 && snapshot.version === DB_VERSION) {
-    try {
-      const fresh = await openDb(factory, name);
-      fresh.close();
-    } catch (error) {
-      return { detail: `Initialize failed: ${String(error)}`, status: "failed" };
-    }
-    return { detail: "Initialized fresh schema.", status: "healthy" };
-  }
+  const hadData = snapshot.stores.length > 0;
   try {
     await deleteDatabase(factory, name);
     const fresh = await openDb(factory, name);
@@ -58,8 +50,11 @@ export async function assessDb(factory: IDBFactory = indexedDB, name: string = D
   } catch (error) {
     return { detail: `Recreate failed: ${String(error)}`, status: "failed" };
   }
-  return {
-    detail: `Recreated clean at version ${DB_VERSION}. Resync from X to rebuild.`,
-    status: "recovered",
-  };
+  if (hadData) {
+    return {
+      detail: `Recreated clean at version ${DB_VERSION}. Resync from X to rebuild.`,
+      status: "recovered",
+    };
+  }
+  return { detail: "Initialized fresh schema.", status: "healthy" };
 }
