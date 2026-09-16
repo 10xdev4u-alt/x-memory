@@ -76,7 +76,7 @@ describe("claims", () => {
       request.onerror = () => reject(request.error);
     });
     const db = await openDb(indexedDB);
-    expect(db.version).toBe(2);
+    expect(db.version).toBe(3);
     expect(db.objectStoreNames.contains("claims")).toBe(true);
     expect(db.objectStoreNames.contains("posts")).toBe(true);
     db.close();
