@@ -1,3 +1,6 @@
+import { callOperation } from "./session-client.js";
+import { loadOps, readBearer } from "./healer.js";
+
 export const GROK_HOST = "https://grok.x.com";
 export const GROK_CREATE_OPERATION = "CreateGrokConversation";
 
@@ -28,6 +31,30 @@ export interface GrokDeps {
 }
 
 export type GrokEvent = { type: "text"; delta: string } | { type: "done"; fullText: string };
+
+export interface ConversationDeps {
+  bearer?: string;
+  cookie?: string;
+  fetchImpl?: typeof fetch;
+}
+
+export async function ensureConversation(deps: ConversationDeps = {}): Promise<string> {
+  const loaded = await loadOps([GROK_CREATE_OPERATION]);
+  if (loaded.length === 0) throw new GrokError("blocked", 0, "grok operations unknown, open x.com to heal");
+  const bearer = deps.bearer ?? (await readBearer());
+  if (bearer === undefined) throw new GrokError("auth", 0, "missing bearer, open x.com to heal");
+  const cookie = deps.cookie ?? (typeof document !== "undefined" ? document.cookie : "");
+  const client: { bearer: string; cookie: string; fetchImpl?: typeof fetch } = { bearer, cookie };
+  if (deps.fetchImpl !== undefined) client.fetchImpl = deps.fetchImpl;
+  const envelope = await callOperation<{ create_grok_conversation?: { conversation_id?: string } }>(
+    GROK_CREATE_OPERATION,
+    {},
+    client,
+  );
+  const id = envelope.data?.create_grok_conversation?.conversation_id;
+  if (id === undefined) throw new GrokError("server", 0, "conversation create returned no id");
+  return id;
+}
 
 export function grokHeaders(requestId: string, clientUuid?: string): Record<string, string> {
   const headers: Record<string, string> = {

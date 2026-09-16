@@ -9,6 +9,11 @@ import { canShareInline, importSharedPackage, packageCollection, parseSharedLink
 import { getVisibility, setVisibility, visibilityBadge, type Visibility } from "./lib/visibility.js";
 import { buildTasteProfile } from "./lib/profile.js";
 import { loopCounts, resolvePost } from "./lib/loops.js";
+import { ensureConversation, GrokError, sendGrokMessage } from "./lib/grok.js";
+import { isPaperDue, readLatestPaper, runPaperJob } from "./lib/paper-job.js";
+import { renderPaperMarkdown, paperToSpeech } from "./lib/paper.js";
+import { browserBackend, playDigest, splitDigest } from "./lib/voice.js";
+import { ThrottleQueue } from "./lib/queue.js";
 import { Selection } from "./lib/selection.js";
 import { listViews, matchView } from "./lib/views.js";
 import { readSession } from "./lib/settings.js";
@@ -537,4 +542,93 @@ document.addEventListener("xmem:open-post", (event) => {
   const postId = (event as CustomEvent).detail as string;
   activate("reader");
   void openPost(postId);
+});
+
+async function renderStoredPaper(): Promise<void> {
+  const zone = document.getElementById("paper");
+  if (zone === null) return;
+  const stored = await readLatestPaper();
+  let article = document.getElementById("paper-article");
+  if (article === null) {
+    article = document.createElement("div");
+    article.id = "paper-article";
+    zone.append(article);
+  }
+  if (stored === undefined) {
+    article.replaceChildren("No paper yet. Generate one below.");
+    return;
+  }
+  article.replaceChildren(stored.markdown);
+}
+
+async function generatePaper(status: HTMLElement, generate: HTMLElement): Promise<void> {
+  if (!(generate instanceof HTMLButtonElement)) return;
+  generate.disabled = true;
+  status.replaceChildren("Writing the paper.");
+  try {
+    const conversationId = await ensureConversation();
+    const paper = await runPaperJob({
+      conversationId,
+      markdown: renderPaperMarkdown,
+      queue: new ThrottleQueue(),
+      send: (message) => sendGrokMessage(message),
+      since: Date.now() - 24 * 60 * 60 * 1000,
+      speech: paperToSpeech,
+    });
+    status.replaceChildren(`Paper ready for ${paper.date}.`);
+    await renderStoredPaper();
+  } catch (error) {
+    if (error instanceof GrokError && error.kind === "quota") {
+      status.replaceChildren("Grok quota hit. Showing the last paper until it resets.");
+      return;
+    }
+    status.replaceChildren(`Paper failed: ${error instanceof Error ? error.message : String(error)}`);
+  } finally {
+    generate.disabled = false;
+  }
+}
+
+function renderPaperControls(): void {
+  const zone = document.getElementById("paper");
+  if (zone === null || document.getElementById("paper-generate") !== null) return;
+  const status = document.createElement("p");
+  status.id = "paper-status";
+  status.setAttribute("role", "status");
+  const generate = document.createElement("button");
+  generate.id = "paper-generate";
+  generate.type = "button";
+  generate.replaceChildren("Generate paper");
+  generate.addEventListener("click", () => void generatePaper(status, generate));
+  const play = document.createElement("button");
+  play.type = "button";
+  play.replaceChildren("Listen");
+  play.setAttribute("aria-label", "Listen to the paper");
+  play.addEventListener("click", () => {
+    void readLatestPaper().then((stored) => {
+      if (stored === undefined) {
+        status.replaceChildren("No paper to play yet.");
+        return;
+      }
+      const backend = browserBackend();
+      if (backend === undefined) {
+        status.replaceChildren("This browser has no speech engine.");
+        return;
+      }
+      status.replaceChildren("Playing the paper.");
+      void playDigest(backend, splitDigest(stored.speech)).done.then(
+        () => status.replaceChildren("Playback finished."),
+        () => status.replaceChildren("Playback stopped."),
+      );
+    });
+  });
+  zone.prepend(status, generate, play);
+}
+
+renderPaperControls();
+void renderStoredPaper();
+void isPaperDue().then((due) => {
+  if (!due) return;
+  const generate = document.getElementById("paper-generate");
+  const status = document.getElementById("paper-status");
+  if (generate !== null && status !== null) void generatePaper(status, generate);
 });
