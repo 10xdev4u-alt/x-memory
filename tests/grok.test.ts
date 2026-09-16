@@ -1,13 +1,31 @@
 import {
   classifyGrokStatus,
+  ensureConversation,
   grokBody,
   grokHeaders,
   GrokError,
   sendGrokMessage,
   type GrokMessage,
 } from "../src/lib/grok.js";
-import { describe, expect, it, vi } from "vitest";
+import { clearOperations } from "../src/lib/op-registry.js";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const store = new Map<string, unknown>();
+
+beforeEach(() => {
+  store.clear();
+  clearOperations();
+  vi.stubGlobal("chrome", {
+    storage: {
+      local: {
+        get: async (key: string) => ({ [key]: store.get(key) }),
+        set: async (entries: Record<string, unknown>) => {
+          for (const [key, value] of Object.entries(entries)) store.set(key, value);
+        },
+      },
+    },
+  });
+});
 function streamResponse(chunks: string[], status = 200): Response {
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -77,5 +95,27 @@ describe("grok pipe", () => {
       throw new Error("down");
     });
     await expect(collect(MESSAGE, fetchImpl as unknown as typeof fetch)).rejects.toBeInstanceOf(GrokError);
+  });
+
+  it("creates conversations from healed operations", async () => {
+    const { saveOps, saveBearer } = await import("../src/lib/healer.js");
+    await saveOps([{ kind: "mutation", operationName: "CreateGrokConversation", queryId: "q9" }]);
+    await saveBearer("bearer-1");
+    const seen: string[] = [];
+    const fetchImpl = vi.fn().mockImplementation(async (url: string) => {
+      seen.push(url);
+      return new Response(JSON.stringify({ data: { create_grok_conversation: { conversation_id: "conv-1" } } }), { status: 200 });
+    });
+    const id = await ensureConversation({ cookie: "ct0=x", fetchImpl: fetchImpl as unknown as typeof fetch });
+    expect(id).toBe("conv-1");
+    expect(seen[0]).toContain("/q9/CreateGrokConversation");
+  });
+
+  it("refuses without healed operations", async () => {
+    const fetchImpl = vi.fn();
+    await expect(ensureConversation({ cookie: "x", fetchImpl: fetchImpl as unknown as typeof fetch })).rejects.toMatchObject({
+      kind: "blocked",
+    });
+    expect(fetchImpl).not.toHaveBeenCalled();
   });
 });

@@ -1,4 +1,59 @@
-import { registerOperation, type OperationDescriptor, type OperationKind } from "./op-registry.js";
+import { registerOperation, resolveOperation, type OperationDescriptor, type OperationKind } from "./op-registry.js";
+
+const OPS_KEY = "xmem.ops";
+const BEARER_KEY = "xmem.bearer";
+
+export interface StoredOperation {
+  kind: OperationKind;
+  queryId: string;
+}
+
+const BEARER_PATTERN = /AAAAAAAAA[A-Za-z0-9%]{40,}/;
+
+export function scanBearer(sources: string[]): string | undefined {
+  for (const source of sources) {
+    const match = BEARER_PATTERN.exec(source);
+    if (match !== null) return decodeURIComponent(match[0]);
+  }
+  return undefined;
+}
+
+export async function saveBearer(bearer: string): Promise<void> {
+  await chrome.storage.local.set({ [BEARER_KEY]: bearer });
+}
+
+export async function readBearer(): Promise<string | undefined> {
+  const stored = await chrome.storage.local.get(BEARER_KEY);
+  const bearer = stored[BEARER_KEY] as string | undefined;
+  return bearer === "" ? undefined : bearer;
+}
+
+export async function saveOps(descriptors: OperationDescriptor[]): Promise<void> {
+  const stored = await chrome.storage.local.get(OPS_KEY);
+  const records = (stored[OPS_KEY] as Record<string, StoredOperation> | undefined) ?? {};
+  for (const descriptor of descriptors) {
+    records[descriptor.operationName] = { kind: descriptor.kind, queryId: descriptor.queryId };
+  }
+  await chrome.storage.local.set({ [OPS_KEY]: records });
+}
+
+export async function loadOps(names: string[]): Promise<OperationDescriptor[]> {
+  const stored = await chrome.storage.local.get(OPS_KEY);
+  const records = (stored[OPS_KEY] as Record<string, StoredOperation> | undefined) ?? {};
+  const descriptors: OperationDescriptor[] = [];
+  for (const name of names) {
+    const record = records[name];
+    if (record === undefined) continue;
+    const descriptor: OperationDescriptor = { kind: record.kind, operationName: name, queryId: record.queryId };
+    try {
+      registerOperation(descriptor);
+    } catch {
+      if (resolveOperation(name)?.queryId !== descriptor.queryId) continue;
+    }
+    descriptors.push(descriptor);
+  }
+  return descriptors;
+}
 
 const DESCRIPTOR_PATTERN =
   /\{queryId:"([^"]+)",operationName:"([^"]+)",operationType:"(query|mutation)"\}/g;

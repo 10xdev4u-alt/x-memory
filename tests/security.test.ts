@@ -18,8 +18,8 @@ describe("security posture", () => {
 
   it("requests only x.com plus storage and panel", () => {
     expect(manifest.host_permissions).toEqual(["https://x.com/*"]);
-    expect(manifest.permissions).toEqual(expect.arrayContaining(["storage", "sidePanel"]));
-    expect(manifest.permissions).toHaveLength(2);
+    expect(manifest.permissions).toEqual(expect.arrayContaining(["storage", "sidePanel", "alarms"]));
+    expect(manifest.permissions).toHaveLength(3);
   });
 
   it("ships no inline scripts or handlers", () => {

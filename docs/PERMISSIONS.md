@@ -14,6 +14,7 @@ Least privilege. Every entry below names its job. New entries need sign-off in t
 |---|---|
 | `storage` | Session snapshots, settings, and corpus metadata in `chrome.storage.local`. |
 | `sidePanel` | Panel registration and open-on-action behavior. |
+| `alarms` | Daily overnight paper trigger. Fires a stored due flag, nothing else. |
 
 ## Content scripts
 
