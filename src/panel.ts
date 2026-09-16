@@ -6,6 +6,7 @@ import { postsToMarkdown } from "./lib/export.js";
 import { buildReaderModel, snippet } from "./lib/reader-model.js";
 import { createCollection, forkCollection, listCollections } from "./lib/collections.js";
 import { canShareInline, importSharedPackage, packageCollection, parseSharedLink, shareLink } from "./lib/sharing.js";
+import { getVisibility, setVisibility, visibilityBadge, type Visibility } from "./lib/visibility.js";
 import { buildTasteProfile } from "./lib/profile.js";
 import { loopCounts, resolvePost } from "./lib/loops.js";
 import { Selection } from "./lib/selection.js";
@@ -223,7 +224,26 @@ async function renderCollections(activeId: string | null): Promise<string | null
       });
     });
     item.append(open, " ", fork, " ", share);
+    const badge = document.createElement("span");
+    const paint = async (): Promise<void> => {
+      const visibility = await getVisibility("collection", collection.id);
+      const info = visibilityBadge(visibility);
+      badge.replaceChildren(`${info.label}`);
+      badge.dataset["tone"] = info.tone;
+    };
+    const cycle = document.createElement("button");
+    cycle.type = "button";
+    cycle.replaceChildren("Visibility");
+    cycle.setAttribute("aria-label", `Change visibility of ${collection.name}`);
+    cycle.addEventListener("click", () => {
+      void getVisibility("collection", collection.id).then((current) => {
+        const next: Visibility = current === "private" ? "unlisted" : current === "unlisted" ? "public" : "private";
+        void setVisibility("collection", collection.id, next).then(() => void paint());
+      });
+    });
+    item.append(" ", badge, " ", cycle);
     list.append(item);
+    void paint();
   }
   section.append(list);
   const importForm = document.createElement("form");
