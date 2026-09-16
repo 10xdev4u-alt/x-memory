@@ -59,7 +59,7 @@ describe("public api", () => {
     });
     expect(mismatch.status).toBe(400);
     expect((await fetch(`${base}/v1/collections/ghost`)).status).toBe(404);
-    expect((await fetch(`${base}/v1/collections/c1`, { method: "DELETE" })).status).toBe(405);
+    expect((await fetch(`${base}/v1/collections/c1`, { headers: { authorization: "Bearer k1" }, method: "DELETE" })).status).toBe(404);
   });
 
   it("rate limits writers", async () => {
@@ -80,5 +80,45 @@ describe("public api", () => {
     });
     expect(put.status).toBe(200);
     expect(await (await fetch(`${base}/v1/profiles/u1`)).json()).toMatchObject({ id: "u1" });
+  });
+
+  it("lets owners delete and blocks strangers", async () => {
+    const base = await start({ keys: ["owner", "stranger"] });
+    const doc = { id: "c9", name: "Gone", postIds: [], updatedAt: 1 };
+    const json = { "content-type": "application/json" };
+    await fetch(`${base}/v1/collections/c9`, { body: JSON.stringify(doc), headers: { ...json, authorization: "Bearer owner" }, method: "PUT" });
+    const stranger = await fetch(`${base}/v1/collections/c9`, { headers: { authorization: "Bearer stranger" }, method: "DELETE" });
+    expect(stranger.status).toBe(403);
+    const missing = await fetch(`${base}/v1/collections/nope`, { headers: { authorization: "Bearer owner" }, method: "DELETE" });
+    expect(missing.status).toBe(404);
+    const owner = await fetch(`${base}/v1/collections/c9`, { headers: { authorization: "Bearer owner" }, method: "DELETE" });
+    expect(owner.status).toBe(200);
+    expect((await fetch(`${base}/v1/collections/c9`)).status).toBe(404);
+  });
+
+  it("takes abuse reports with credit", async () => {
+    const base = await start();
+    const json = { "content-type": "application/json" };
+    const anon = await fetch(`${base}/v1/reports`, {
+      body: JSON.stringify({ id: "c1", kind: "collections", reason: "spam" }),
+      headers: json,
+      method: "POST",
+    });
+    expect(anon.status).toBe(401);
+    const bad = await fetch(`${base}/v1/reports`, {
+      body: JSON.stringify({ id: "c1", kind: "nope", reason: "x" }),
+      headers: { ...json, authorization: "Bearer k1" },
+      method: "POST",
+    });
+    expect(bad.status).toBe(400);
+    const good = await fetch(`${base}/v1/reports`, {
+      body: JSON.stringify({ id: "c1", kind: "collections", reason: "spam account" }),
+      headers: { ...json, authorization: "Bearer k1" },
+      method: "POST",
+    });
+    expect(good.status).toBe(200);
+    const list = await fetch(`${base}/v1/reports`, { headers: { authorization: "Bearer k1" } });
+    const body = (await list.json()) as { reports: Array<{ reason: string }> };
+    expect(body.reports.map((report) => report.reason)).toEqual(["spam account"]);
   });
 });
