@@ -31,6 +31,11 @@ export function readCsrfToken(cookie: string): string {
   return match?.[1] === undefined ? "" : decodeURIComponent(match[1]);
 }
 
+export async function readStoredCsrf(): Promise<string> {
+  const stored = await chrome.storage.local.get("xmem.csrf");
+  return (stored["xmem.csrf"] as string | undefined) ?? "";
+}
+
 export function buildOperationUrl(queryId: string, operationName: string, variables: unknown): string {
   return `${GRAPHQL_BASE}/${queryId}/${operationName}?variables=${encodeURIComponent(JSON.stringify(variables))}`;
 }
