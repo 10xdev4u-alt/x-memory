@@ -5,6 +5,7 @@ import { allRecords, getRecord, mediaForPost, openDb, type BriefRecord, type Med
 import { postsToMarkdown } from "./lib/export.js";
 import { buildReaderModel, snippet } from "./lib/reader-model.js";
 import { createCollection, forkCollection, listCollections } from "./lib/collections.js";
+import { buildTasteProfile } from "./lib/profile.js";
 import { loopCounts, resolvePost } from "./lib/loops.js";
 import { Selection } from "./lib/selection.js";
 import { listViews, matchView } from "./lib/views.js";
@@ -214,6 +215,23 @@ async function renderCollections(activeId: string | null): Promise<string | null
   return selected;
 }
 
+async function renderProfile(): Promise<void> {
+  const library = document.getElementById("library");
+  if (library === null) return;
+  const profile = await buildTasteProfile();
+  let card = document.getElementById("taste-profile");
+  if (card === null) {
+    card = document.createElement("div");
+    card.id = "taste-profile";
+    library.prepend(card);
+  }
+  const minds = profile.minds.slice(0, 3).map((mind) => `@${mind.handle} (${mind.score})`).join(", ") || "none yet";
+  const clusters = profile.clusters.slice(0, 3).map((cluster) => `${cluster.label} (${cluster.count})`).join(", ") || "none yet";
+  card.replaceChildren(
+    `Taste profile: ${profile.stats.posts} posts, ${profile.stats.briefs} briefs, ${profile.stats.loopsOpen} open loops. Minds: ${minds}. Clusters: ${clusters}.`,
+  );
+}
+
 async function renderLibrary(activeCollection: string | null = null): Promise<void> {
   const library = document.getElementById("library");
   if (library === null) return;
@@ -302,6 +320,7 @@ async function renderLibrary(activeCollection: string | null = null): Promise<vo
   }
   refreshBulk();
   await renderCollections(activeCollection);
+  await renderProfile();
 }
 
 async function exportSelection(selection: Selection): Promise<void> {
