@@ -30,6 +30,13 @@
       <h2>Versions</h2>
       <p id="version-info">Loading versions.</p>
     </section>
+    <section aria-label="Backup" id="backup-card">
+      <h2>Backup</h2>
+      <button id="backup-export" type="button">Download backup</button>
+      <label for="backup-import">Restore from file</label>
+      <input accept="application/json" id="backup-import" type="file" />
+      <p id="backup-state" role="status"></p>
+    </section>
     <section aria-label="Danger zone" id="danger-card">
       <h2>Danger zone</h2>
       <button id="wipe-data" type="button">Wipe local data</button>
