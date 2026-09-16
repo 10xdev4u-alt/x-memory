@@ -70,7 +70,7 @@ describe("predictions", () => {
     expect(calls).toBe(0);
   });
 
-  it("migrates v2 databases to v4", async () => {
+  it("migrates v2 databases forward", async () => {
     await new Promise<void>((resolve, reject) => {
       const request = indexedDB.open("x-memory", 2);
       request.onupgradeneeded = () => {
@@ -83,7 +83,7 @@ describe("predictions", () => {
       request.onerror = () => reject(request.error);
     });
     const db = await openDb(indexedDB);
-    expect(db.version).toBe(4);
+    expect(db.version).toBe(5);
     expect(db.objectStoreNames.contains("predictions")).toBe(true);
     expect(db.objectStoreNames.contains("posts")).toBe(true);
     db.close();

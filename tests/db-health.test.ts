@@ -34,7 +34,7 @@ describe("db-health", () => {
     expect(report.status).toBe("recovered");
     expect(report.detail).toContain("Resync");
     const db = await openDb(indexedDB);
-    expect(db.version).toBe(4);
+    expect(db.version).toBe(5);
     expect(db.objectStoreNames.contains("claims")).toBe(true);
     db.close();
   });

@@ -3,7 +3,7 @@ import type { PostReferences } from "./threads.js";
 export type PostStatus = "active" | "deleted" | "suspended";
 
 export const DB_NAME = "x-memory";
-export const DB_VERSION = 4;
+export const DB_VERSION = 5;
 
 export type Provenance = "saved" | "liked" | "both";
 
@@ -45,7 +45,7 @@ export interface BriefRecord {
   createdAt: number;
 }
 
-export type StoreName = "posts" | "authors" | "media" | "briefs" | "claims" | "predictions" | "review";
+export type StoreName = "posts" | "authors" | "media" | "briefs" | "claims" | "predictions" | "review" | "loops";
 
 export interface ClaimRecord {
   checkedAt: number;
@@ -74,6 +74,11 @@ export interface ReviewRecord {
   dueAt: number;
   intervalDays: number;
   postId: string;
+}
+
+export interface LoopRecord {
+  postId: string;
+  resolvedAt: number;
 }
 
 export function openDb(factory: IDBFactory = indexedDB, name: string = DB_NAME): Promise<IDBDatabase> {
@@ -109,6 +114,9 @@ export function openDb(factory: IDBFactory = indexedDB, name: string = DB_NAME):
       if (!db.objectStoreNames.contains("review")) {
         const review = db.createObjectStore("review", { keyPath: "postId" });
         review.createIndex("by-due", "dueAt", { unique: false });
+      }
+      if (!db.objectStoreNames.contains("loops")) {
+        db.createObjectStore("loops", { keyPath: "postId" });
       }
     };
     request.onsuccess = () => resolve(request.result);

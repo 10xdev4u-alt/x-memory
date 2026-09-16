@@ -4,6 +4,7 @@ import { isZone, type Zone } from "./lib/zone-nav.js";
 import { allRecords, getRecord, mediaForPost, openDb, type BriefRecord, type MediaRecord, type PostRecord } from "./lib/db.js";
 import { postsToMarkdown } from "./lib/export.js";
 import { buildReaderModel, snippet } from "./lib/reader-model.js";
+import { loopCounts, resolvePost } from "./lib/loops.js";
 import { Selection } from "./lib/selection.js";
 import { listViews, matchView } from "./lib/views.js";
 import { readSession } from "./lib/settings.js";
@@ -148,6 +149,7 @@ void applyTheme(document.documentElement);
 void renderSessionBanner();
 void renderAccounts();
 void renderLibrary();
+void renderLoopCount();
 
 const selection = new Selection();
 
@@ -317,8 +319,32 @@ async function openPost(postId: string): Promise<void> {
   copy.addEventListener("click", () => {
     void navigator.clipboard.writeText(model.originalUrl).then(() => copy.replaceChildren("Copied"));
   });
-  actions.append(open, " ", copy);
+  const resolve = document.createElement("button");
+  resolve.type = "button";
+  resolve.replaceChildren("Resolve");
+  resolve.addEventListener("click", () => {
+    void resolvePost(model.id, Date.now()).then((done) => {
+      resolve.replaceChildren(done ? "Resolved" : "Already resolved");
+      void renderLoopCount();
+      void renderLibrary();
+    });
+  });
+  actions.append(open, " ", copy, " ", resolve);
   reader.append(actions);
+}
+
+async function renderLoopCount(): Promise<void> {
+  const library = document.getElementById("library");
+  if (library === null) return;
+  const counts = await loopCounts();
+  let line = document.getElementById("loop-count");
+  if (line === null) {
+    line = document.createElement("p");
+    line.id = "loop-count";
+    line.setAttribute("role", "status");
+    library.prepend(line);
+  }
+  line.replaceChildren(counts.open === 0 ? "Inbox zero. Everything resolved." : `${counts.open} open loops.`);
 }
 
 document.addEventListener("xmem:open-post", (event) => {
