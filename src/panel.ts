@@ -4,6 +4,7 @@ import { isZone, type Zone } from "./lib/zone-nav.js";
 import { allRecords, getRecord, mediaForPost, openDb, type BriefRecord, type MediaRecord, type PostRecord } from "./lib/db.js";
 import { postsToMarkdown } from "./lib/export.js";
 import { buildReaderModel, snippet } from "./lib/reader-model.js";
+import { createCollection, forkCollection, listCollections } from "./lib/collections.js";
 import { loopCounts, resolvePost } from "./lib/loops.js";
 import { Selection } from "./lib/selection.js";
 import { listViews, matchView } from "./lib/views.js";
@@ -157,7 +158,63 @@ function refreshBulk(): void {
   document.getElementById("bulk-bar")?.replaceChildren(`Selected ${selection.size}`);
 }
 
-async function renderLibrary(): Promise<void> {
+async function renderCollections(activeId: string | null): Promise<string | null> {
+  const library = document.getElementById("library");
+  if (library === null) return activeId;
+  let section = document.getElementById("collections");
+  if (section === null) {
+    section = document.createElement("div");
+    section.id = "collections";
+    library.append(section);
+  }
+  section.replaceChildren();
+  const heading = document.createElement("h2");
+  heading.replaceChildren("Collections");
+  const form = document.createElement("form");
+  const input = document.createElement("input");
+  input.type = "text";
+  input.placeholder = "New collection name";
+  input.setAttribute("aria-label", "New collection name");
+  const create = document.createElement("button");
+  create.type = "submit";
+  create.replaceChildren("Create");
+  form.append(input, create);
+  form.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const name = input.value.trim();
+    if (name === "") return;
+    void createCollection(name, "", Date.now()).then(() => {
+      void renderLibrary();
+    });
+  });
+  section.append(heading, form);
+  const list = document.createElement("ul");
+  let selected = activeId;
+  for (const collection of await listCollections()) {
+    const item = document.createElement("li");
+    const open = document.createElement("button");
+    open.type = "button";
+    open.replaceChildren(`${collection.name} (${collection.postIds.length})`);
+    open.setAttribute("aria-pressed", String(collection.id === selected));
+    open.addEventListener("click", () => {
+      selected = selected === collection.id ? null : collection.id;
+      void renderLibrary(selected);
+    });
+    const fork = document.createElement("button");
+    fork.type = "button";
+    fork.replaceChildren("Fork");
+    fork.setAttribute("aria-label", `Fork ${collection.name}`);
+    fork.addEventListener("click", () => {
+      void forkCollection(collection.id, `${collection.name} (fork)`, Date.now()).then(() => void renderLibrary(selected));
+    });
+    item.append(open, " ", fork);
+    list.append(item);
+  }
+  section.append(list);
+  return selected;
+}
+
+async function renderLibrary(activeCollection: string | null = null): Promise<void> {
   const library = document.getElementById("library");
   if (library === null) return;
   const db = await openDb();
@@ -208,10 +265,15 @@ async function renderLibrary(): Promise<void> {
     if (views.some((view) => view.id === current)) select.value = current;
   }
   const active = views.find((view) => view.id === (select instanceof HTMLSelectElement ? select.value : ""));
-  const visible =
+  let visible =
     active === undefined
       ? posts
       : posts.filter((post) => matchView(post, active, { mediaCount: mediaCounts.get(post.id) ?? 0 }));
+  if (activeCollection !== null) {
+    const collection = (await listCollections()).find((entry) => entry.id === activeCollection);
+    const members = new Set(collection?.postIds ?? []);
+    visible = visible.filter((post) => members.has(post.id));
+  }
   let list = document.getElementById("post-list");
   if (list === null) {
     list = document.createElement("ul");
@@ -239,6 +301,7 @@ async function renderLibrary(): Promise<void> {
     list.append(item);
   }
   refreshBulk();
+  await renderCollections(activeCollection);
 }
 
 async function exportSelection(selection: Selection): Promise<void> {
