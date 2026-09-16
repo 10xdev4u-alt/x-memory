@@ -3,7 +3,7 @@ import type { PostReferences } from "./threads.js";
 export type PostStatus = "active" | "deleted" | "suspended";
 
 export const DB_NAME = "x-memory";
-export const DB_VERSION = 1;
+export const DB_VERSION = 2;
 
 export type Provenance = "saved" | "liked" | "both";
 
@@ -45,7 +45,18 @@ export interface BriefRecord {
   createdAt: number;
 }
 
-export type StoreName = "posts" | "authors" | "media" | "briefs";
+export type StoreName = "posts" | "authors" | "media" | "briefs" | "claims";
+
+export interface ClaimRecord {
+  checkedAt: number;
+  evidence?: string;
+  id: string;
+  postId: string;
+  status: ClaimStatus;
+  text: string;
+}
+
+export type ClaimStatus = "fresh" | "evolving" | "dead";
 
 export function openDb(factory: IDBFactory = indexedDB, name: string = DB_NAME): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -66,6 +77,11 @@ export function openDb(factory: IDBFactory = indexedDB, name: string = DB_NAME):
       }
       if (!db.objectStoreNames.contains("briefs")) {
         db.createObjectStore("briefs", { keyPath: "postId" });
+      }
+      if (!db.objectStoreNames.contains("claims")) {
+        const claims = db.createObjectStore("claims", { keyPath: "id" });
+        claims.createIndex("by-post", "postId", { unique: false });
+        claims.createIndex("by-status", "status", { unique: false });
       }
     };
     request.onsuccess = () => resolve(request.result);

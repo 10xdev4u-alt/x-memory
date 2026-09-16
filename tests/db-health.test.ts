@@ -20,8 +20,10 @@ describe("db-health", () => {
 
   it("recovers a version-skewed database by recreating", async () => {
     await new Promise<void>((resolve, reject) => {
-      const request = indexedDB.open(DB_NAME, 99);
-      request.onupgradeneeded = () => undefined;
+      const request = indexedDB.open("x-memory", 99);
+      request.onupgradeneeded = () => {
+        request.result.createObjectStore("legacy", { keyPath: "id" });
+      };
       request.onsuccess = () => {
         request.result.close();
         resolve();
@@ -32,7 +34,8 @@ describe("db-health", () => {
     expect(report.status).toBe("recovered");
     expect(report.detail).toContain("Resync");
     const db = await openDb(indexedDB);
-    expect(db.version).toBe(1);
+    expect(db.version).toBe(2);
+    expect(db.objectStoreNames.contains("claims")).toBe(true);
     db.close();
   });
 
