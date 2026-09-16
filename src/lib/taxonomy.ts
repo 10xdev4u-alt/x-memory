@@ -31,14 +31,6 @@ function signalsFor(post: ClusterInput): Set<string> {
   return signals;
 }
 
-function sharedSignals(a: Set<string>, b: Set<string>): number {
-  let shared = 0;
-  for (const signal of a) {
-    if (b.has(signal)) shared += signal.startsWith("#") ? 3 : 1;
-  }
-  return shared;
-}
-
 export function clusterPosts(posts: ClusterInput[]): Cluster[] {
   const signals = new Map(posts.map((post) => [post.id, signalsFor(post)]));
   const parent = new Map(posts.map((post) => [post.id, post.id]));
@@ -52,14 +44,45 @@ export function clusterPosts(posts: ClusterInput[]): Cluster[] {
   const union = (a: string, b: string): void => {
     parent.set(find(a), find(b));
   };
-  for (let i = 0; i < posts.length; i += 1) {
-    for (let j = i + 1; j < posts.length; j += 1) {
-      const a = posts[i];
-      const b = posts[j];
-      if (a === undefined || b === undefined) continue;
-      const setA = signals.get(a.id) ?? new Set<string>();
-      const setB = signals.get(b.id) ?? new Set<string>();
-      if (sharedSignals(setA, setB) >= 2) union(a.id, b.id);
+  const bySignal = new Map<string, string[]>();
+  for (const post of posts) {
+    for (const signal of signals.get(post.id) ?? []) {
+      const bucket = bySignal.get(signal) ?? [];
+      bucket.push(post.id);
+      bySignal.set(signal, bucket);
+    }
+  }
+  const candidates = new Set<string>();
+  // Signals shared by more than five percent of the corpus carry no
+  // clustering value and would explode candidate pairs on dense data.
+  const maxBucket = Math.max(50, Math.floor(posts.length * 0.05));
+  for (const bucket of bySignal.values()) {
+    if (bucket.length < 2 || bucket.length > maxBucket) continue;
+    for (let i = 0; i < bucket.length; i += 1) {
+      for (let j = i + 1; j < bucket.length; j += 1) {
+        const a = bucket[i] as string;
+        const b = bucket[j] as string;
+        candidates.add(a < b ? `${a} ${b}` : `${b} ${a}`);
+      }
+    }
+  }
+  const byId = new Map(posts.map((post) => [post.id, post]));
+  for (const pair of candidates) {
+    const [aId, bId] = pair.split(" ");
+    const a = byId.get(aId ?? "");
+    const b = byId.get(bId ?? "");
+    if (a === undefined || b === undefined) continue;
+    const setA = signals.get(a.id) ?? new Set<string>();
+    const setB = signals.get(b.id) ?? new Set<string>();
+    let shared = 0;
+    const [smaller, larger] = setA.size <= setB.size ? [setA, setB] : [setB, setA];
+    for (const signal of smaller) {
+      if (!larger.has(signal)) continue;
+      shared += signal.startsWith("#") ? 3 : 1;
+      if (shared >= 2) {
+        union(a.id, b.id);
+        break;
+      }
     }
   }
   const groups = new Map<string, string[]>();
