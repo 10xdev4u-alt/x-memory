@@ -14,6 +14,11 @@ import { isPaperDue, readLatestPaper, runPaperJob } from "./lib/paper-job.js";
 import { renderPaperMarkdown, paperToSpeech } from "./lib/paper.js";
 import { browserBackend, playDigest, splitDigest } from "./lib/voice.js";
 import { ThrottleQueue } from "./lib/queue.js";
+import { completeStep, nextStep, readOnboarding, type OnboardingStep } from "./lib/onboarding.js";
+import { loadOps, readBearer } from "./lib/healer.js";
+import { callOperation, readStoredCsrf } from "./lib/session-client.js";
+import { syncBookmarks, syncLikes, type SyncTransport } from "./lib/sync.js";
+import { briefBatch } from "./lib/briefs.js";
 import { Selection } from "./lib/selection.js";
 import { listViews, matchView } from "./lib/views.js";
 import { readSession } from "./lib/settings.js";
@@ -159,6 +164,7 @@ void renderSessionBanner();
 void renderAccounts();
 void renderLibrary();
 void renderLoopCount();
+void renderOnboarding();
 
 const selection = new Selection();
 
@@ -632,3 +638,142 @@ void isPaperDue().then((due) => {
   const status = document.getElementById("paper-status");
   if (generate !== null && status !== null) void generatePaper(status, generate);
 });
+void renderOnboarding();
+
+async function panelTransport(): Promise<SyncTransport | undefined> {
+  const loaded = await loadOps(["Bookmarks", "Likes"]);
+  if (loaded.length === 0) return undefined;
+  const bearer = await readBearer();
+  const csrf = await readStoredCsrf();
+  if (bearer === undefined || csrf === "") return undefined;
+  const authedFetch = (url: string | URL | Request, init?: RequestInit): Promise<Response> =>
+    fetch(url, { ...init, credentials: "include" });
+  return {
+    fetchPage: (operation, variables) => callOperation(operation, variables, { bearer, cookie: `ct0=${csrf}`, fetchImpl: authedFetch }),
+  };
+}
+
+async function runOnboardingSync(status: HTMLElement): Promise<boolean> {
+  const transport = await panelTransport();
+  if (transport === undefined) {
+    status.replaceChildren("Open x.com first so operations heal, then retry.");
+    return false;
+  }
+  const queue = new ThrottleQueue();
+  status.replaceChildren("Syncing bookmarks.");
+  await syncBookmarks({ queue, transport });
+  const userId = await readCurrentAccount();
+  if (userId !== undefined) {
+    status.replaceChildren("Syncing likes.");
+    await syncLikes({ queue, transport, userId });
+  }
+  await renderLibrary();
+  await renderLoopCount();
+  return true;
+}
+
+async function runOnboardingBriefs(status: HTMLElement): Promise<boolean> {
+  const transport = await panelTransport();
+  if (transport === undefined) {
+    status.replaceChildren("Open x.com first so operations heal, then retry.");
+    return false;
+  }
+  status.replaceChildren("Starting a Grok conversation.");
+  let conversationId: string;
+  try {
+    conversationId = await ensureConversation();
+  } catch {
+    status.replaceChildren("Grok is unreachable right now. Retry later.");
+    return false;
+  }
+  status.replaceChildren("Briefing first saves.");
+  const db = await openDb();
+  const posts = (await allRecords<PostRecord>(db, "posts")).slice(0, 5);
+  db.close();
+  const result = await briefBatch(
+    posts.map((post) => ({ authorHandle: post.authorHandle, id: post.id, text: post.text })),
+    { conversationId, queue: new ThrottleQueue(), send: (message) => sendGrokMessage(message) },
+  );
+  status.replaceChildren(`Briefed ${result.briefed}, skipped ${result.skipped}.`);
+  await renderLibrary();
+  return result.briefed > 0 || result.skipped > 0;
+}
+
+const STEP_COPY: Record<OnboardingStep, { action: string; done: string; todo: string }> = {
+  brief: { action: "Brief first saves", done: "First briefs written.", todo: "Turn five saves into briefs." },
+  paper: { action: "Write first paper", done: "First paper written.", todo: "Assemble the first Morning Paper." },
+  session: { action: "Open X", done: "Session active.", todo: "Log into X so the extension can sync." },
+  sync: { action: "Sync now", done: "Corpus synced.", todo: "Pull bookmarks and likes." },
+};
+
+async function renderOnboarding(): Promise<void> {
+  const library = document.getElementById("library");
+  if (library === null) return;
+  const state = await readOnboarding();
+  let section = document.getElementById("onboarding");
+  if (state.done.length === 4) {
+    section?.remove();
+    return;
+  }
+  if (section === null) {
+    section = document.createElement("div");
+    section.id = "onboarding";
+    library.prepend(section);
+  }
+  section.replaceChildren();
+  const heading = document.createElement("h2");
+  heading.replaceChildren("Getting started");
+  section.append(heading);
+  const status = document.createElement("p");
+  status.setAttribute("role", "status");
+  section.append(status);
+  const step = nextStep(state);
+  if (step === undefined) return;
+  const copy = STEP_COPY[step];
+  const line = document.createElement("p");
+  line.replaceChildren(`Next: ${copy.todo}`);
+  const button = document.createElement("button");
+  button.type = "button";
+  button.replaceChildren(copy.action);
+  button.addEventListener("click", () => {
+    void (async () => {
+      if (step === "session") {
+        await chrome.tabs.create({ url: "https://x.com/i/history" });
+        status.replaceChildren("Log into X, browse a little, then come back.");
+        return;
+      }
+      if (step === "sync") {
+        if (await runOnboardingSync(status)) {
+          await completeStep("sync");
+          status.replaceChildren(STEP_COPY.sync.done);
+          await renderOnboarding();
+        }
+        return;
+      }
+      if (step === "brief") {
+        if (await runOnboardingBriefs(status)) {
+          await completeStep("brief");
+          status.replaceChildren(STEP_COPY.brief.done);
+          await renderOnboarding();
+        }
+        return;
+      }
+      const generate = document.getElementById("paper-generate");
+      const paperStatus = document.getElementById("paper-status");
+      if (generate !== null && paperStatus !== null) {
+        activate("paper");
+        await generatePaper(paperStatus, generate);
+        await completeStep("paper");
+        await renderOnboarding();
+      }
+    })();
+  });
+  section.append(line, button);
+  if (step !== "session") {
+    const snapshot = await readSession();
+    if (snapshot.state === "active" && !(await readOnboarding()).done.includes("session")) {
+      await completeStep("session");
+      await renderOnboarding();
+    }
+  }
+}

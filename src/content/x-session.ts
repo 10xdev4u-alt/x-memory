@@ -46,6 +46,10 @@ async function snapshotSession(): Promise<void> {
   const previous = await readSession();
   const next = transition(previous.state, state === "active" ? "CHECK_OK" : "CHECK_GONE");
   await writeSession({ checkedAt: Date.now(), state: next });
+  const csrf = /(?:^|; )ct0=([^;]+)/.exec(document.cookie)?.[1];
+  if (csrf !== undefined && csrf !== "") {
+    await chrome.storage.local.set({ "xmem.csrf": decodeURIComponent(csrf) });
+  }
   const accountId = parseAccountId(document.cookie);
   if (accountId !== undefined) {
     await rememberAccount({ id: accountId, lastUsed: Date.now() });
