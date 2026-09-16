@@ -10,10 +10,10 @@ describe("corpus schema", () => {
     await Promise.all(dbs.map((info) => info.name !== undefined && indexedDB.deleteDatabase(info.name)));
   });
 
-  it("creates seven versioned stores", async () => {
+  it("creates eight versioned stores", async () => {
     const db = await openDb(indexedDB);
-    expect([...db.objectStoreNames]).toEqual(expect.arrayContaining(["posts", "authors", "media", "briefs", "claims", "predictions", "review"]));
-    expect(db.version).toBe(4);
+    expect([...db.objectStoreNames]).toEqual(expect.arrayContaining(["posts", "authors", "media", "briefs", "claims", "predictions", "review", "loops"]));
+    expect(db.version).toBe(5);
     db.close();
   });
 
