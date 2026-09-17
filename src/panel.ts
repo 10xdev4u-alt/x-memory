@@ -709,7 +709,13 @@ const STEP_COPY: Record<OnboardingStep, { action: string; done: string; todo: st
 async function renderOnboarding(): Promise<void> {
   const library = document.getElementById("library");
   if (library === null) return;
-  const state = await readOnboarding();
+  let state = await readOnboarding();
+  if (!state.done.includes("session")) {
+    const snapshot = await readSession();
+    if (snapshot.state === "active") {
+      state = await completeStep("session");
+    }
+  }
   let section = document.getElementById("onboarding");
   if (state.done.length === 4) {
     section?.remove();
@@ -769,11 +775,4 @@ async function renderOnboarding(): Promise<void> {
     })();
   });
   section.append(line, button);
-  if (step !== "session") {
-    const snapshot = await readSession();
-    if (snapshot.state === "active" && !(await readOnboarding()).done.includes("session")) {
-      await completeStep("session");
-      await renderOnboarding();
-    }
-  }
 }
