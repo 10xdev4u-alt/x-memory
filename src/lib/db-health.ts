@@ -1,3 +1,4 @@
+import { currentDbName } from "./accounts.js";
 import { DB_NAME, DB_VERSION, openDb, type StoreName } from "./db.js";
 
 export type DbHealth = "healthy" | "recovered" | "failed";
@@ -31,10 +32,11 @@ function deleteDatabase(factory: IDBFactory, name: string): Promise<void> {
   });
 }
 
-export async function assessDb(factory: IDBFactory = indexedDB, name: string = DB_NAME): Promise<HealthReport> {
+export async function assessDb(factory: IDBFactory = indexedDB, name?: string): Promise<HealthReport> {
+  const resolvedName = name ?? (await currentDbName()) ?? DB_NAME;
   let snapshot: { version: number; stores: string[] };
   try {
-    snapshot = await inspectDb(factory, name);
+    snapshot = await inspectDb(factory, resolvedName);
   } catch (error) {
     return { detail: `Open failed: ${String(error)}`, status: "failed" };
   }
@@ -44,8 +46,8 @@ export async function assessDb(factory: IDBFactory = indexedDB, name: string = D
   }
   const hadData = snapshot.stores.length > 0;
   try {
-    await deleteDatabase(factory, name);
-    const fresh = await openDb(factory, name);
+    await deleteDatabase(factory, resolvedName);
+    const fresh = await openDb(factory, resolvedName);
     fresh.close();
   } catch (error) {
     return { detail: `Recreate failed: ${String(error)}`, status: "failed" };

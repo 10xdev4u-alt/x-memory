@@ -6,9 +6,16 @@ import {
   rememberAccount,
   writeCurrentAccount,
 } from "../src/lib/accounts.js";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { indexedDB } from "fake-indexeddb";
+import { countRecords, openDb, putRecords } from "../src/lib/db.js";
 
 const store = new Map<string, unknown>();
+
+afterEach(async () => {
+  const dbs = await indexedDB.databases();
+  await Promise.all(dbs.map((info) => info.name !== undefined && indexedDB.deleteDatabase(info.name)));
+});
 
 beforeEach(() => {
   store.clear();
@@ -34,6 +41,21 @@ describe("accounts", () => {
   it("names databases per account", () => {
     expect(dbNameFor("12345")).toBe("x-memory-12345");
     expect(dbNameFor("12345")).not.toBe(dbNameFor("678"));
+  });
+
+  it("isolates records when the current account changes", async () => {
+    await writeCurrentAccount("a");
+    const first = await openDb(indexedDB);
+    await putRecords(first, "posts", [{ id: "a-post" }]);
+    first.close();
+    await writeCurrentAccount("b");
+    const second = await openDb(indexedDB);
+    expect(second.name).toBe("x-memory-b");
+    expect(await countRecords(second, "posts")).toBe(0);
+    second.close();
+    const firstAgain = await openDb(indexedDB, "x-memory-a");
+    expect(await countRecords(firstAgain, "posts")).toBe(1);
+    firstAgain.close();
   });
 
   it("remembers accounts newest first without duplicates", async () => {
