@@ -64,6 +64,10 @@ export interface ImportResult {
   posts: number;
 }
 
+function sharedPostId(packageId: string, postId: string): string {
+  return `shared:${packageId}:${postId}`;
+}
+
 export async function importSharedPackage(
   pkg: unknown,
   deps?: { dbFactory?: IDBFactory; dbName?: string },
@@ -80,7 +84,7 @@ export async function importSharedPackage(
         authorId: post.authorHandle !== "" ? `shared:${post.authorHandle}` : `shared:${post.id}`,
         authorName: post.authorName,
         createdAt: post.createdAt,
-        id: post.id,
+        id: sharedPostId(validated.id, post.id),
         provenance: "saved" as const,
         references: { quotedIds: [] as string[] },
         status: "active" as const,
@@ -89,13 +93,13 @@ export async function importSharedPackage(
         url: post.url,
       })),
     );
-    const briefs = Object.entries(validated.briefs).map(([postId, text]) => ({ createdAt: now, postId, text }));
+    const briefs = Object.entries(validated.briefs).map(([postId, text]) => ({ createdAt: now, postId: sharedPostId(validated.id, postId), text }));
     if (briefs.length > 0) await putRecords(db, "briefs", briefs);
   } finally {
     db.close();
   }
-  const collectionId = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `c-${now}`;
-  await saveCollection({ createdAt: now, id: collectionId, name: validated.name, originId: validated.id, postIds: validated.posts.map((post) => post.id), updatedAt: now });
+  const collectionId = `shared:${validated.id}`;
+  await saveCollection({ createdAt: now, id: collectionId, name: validated.name, originId: validated.id, postIds: validated.posts.map((post) => sharedPostId(validated.id, post.id)), updatedAt: now });
   return { briefs: Object.keys(validated.briefs).length, collectionId, posts: validated.posts.length };
 }
 

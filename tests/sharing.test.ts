@@ -82,17 +82,49 @@ describe("sharing", () => {
     db.close();
   });
 
+  it("namespaces imports and remains idempotent", async () => {
+    const { putRecords } = await import("../src/lib/db.js");
+    const authentic = {
+      ...POSTS[0],
+      authorId: "real-author",
+      provenance: "saved" as const,
+      references: { quotedIds: [] as string[] },
+      status: "active" as const,
+      syncedAt: 1,
+      text: "authentic text"
+    };
+    const seed = await openDb(indexedDB);
+    await putRecords(seed, "posts", [authentic]);
+    await putRecords(seed, "briefs", [{ createdAt: 1, postId: "p1", text: "authentic brief" }]);
+    seed.close();
+    const pkg = packageCollection("shared-1", "Shared", undefined, POSTS, { p1: "shared brief" });
+
+    const first = await importSharedPackage(pkg, { dbFactory: indexedDB });
+    const second = await importSharedPackage(pkg, { dbFactory: indexedDB });
+
+    expect(second.collectionId).toBe(first.collectionId);
+    const db = await openDb(indexedDB);
+    expect(await countRecords(db, "posts")).toBe(3);
+    expect(await countRecords(db, "briefs")).toBe(2);
+    expect(await getRecord(db, "posts", "p1")).toMatchObject({ text: "authentic text" });
+    expect(await getRecord(db, "posts", "shared:shared-1:p1")).toMatchObject({ text: "hello world, kernels" });
+    expect(await getRecord(db, "briefs", "p1")).toMatchObject({ text: "authentic brief" });
+    expect(await getRecord(db, "briefs", "shared:shared-1:p1")).toMatchObject({ text: "shared brief" });
+    db.close();
+    expect(await listCollections()).toHaveLength(1);
+  });
+
   it("imports packages with posts, briefs, and lineage", async () => {
     const pkg = packageCollection("origin-1", "Canon", "base", POSTS, { p1: "brief one" });
     const result = await importSharedPackage(pkg, { dbFactory: indexedDB });
     expect(result).toMatchObject({ briefs: 1, posts: 2 });
     const db = await openDb(indexedDB);
     expect(await countRecords(db, "posts")).toBe(2);
-    expect(await getRecord(db, "briefs", "p1")).toMatchObject({ text: "brief one" });
+    expect(await getRecord(db, "briefs", "shared:origin-1:p1")).toMatchObject({ text: "brief one" });
     db.close();
     const collections = await listCollections();
     expect(collections).toHaveLength(1);
-    expect(collections[0]).toMatchObject({ name: "Canon", originId: "origin-1" });
-    expect(collections[0]?.postIds).toEqual(["p1", "p2"]);
+    expect(collections[0]).toMatchObject({ id: "shared:origin-1", name: "Canon", originId: "origin-1" });
+    expect(collections[0]?.postIds).toEqual(["shared:origin-1:p1", "shared:origin-1:p2"]);
   });
 });
