@@ -241,9 +241,12 @@ export function createApiServer(store: ApiStore, options: ApiOptions): Server {
         return;
       }
       const docKey = `${kind}:${id}`;
+      const map = kind === "collections" ? store.collections : kind === "profiles" ? store.profiles : store.boards;
+      if (request.method === "PUT" && map.has(id) && store.owners.get(docKey) !== ownerHash(key)) {
+        send(response, 403, { error: "not the owner" });
+        return;
+      }
       if (request.method === "DELETE") {
-        const map =
-          kind === "collections" ? store.collections : kind === "profiles" ? store.profiles : store.boards;
         if (!map.has(id)) {
           send(response, 404, { error: "not found" });
           return;

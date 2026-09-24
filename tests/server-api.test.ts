@@ -87,6 +87,14 @@ describe("public api", () => {
     const doc = { id: "c9", name: "Gone", postIds: [], updatedAt: 1 };
     const json = { "content-type": "application/json" };
     await fetch(`${base}/v1/collections/c9`, { body: JSON.stringify(doc), headers: { ...json, authorization: "Bearer owner" }, method: "PUT" });
+    const strangerUpdate = await fetch(`${base}/v1/collections/c9`, {
+      body: JSON.stringify({ ...doc, name: "Hijacked" }),
+      headers: { ...json, authorization: "Bearer stranger" },
+      method: "PUT",
+    });
+    expect(strangerUpdate.status).toBe(403);
+    expect(await (await fetch(`${base}/v1/collections/c9`)).json()).toMatchObject({ name: "Gone" });
+
     const stranger = await fetch(`${base}/v1/collections/c9`, { headers: { authorization: "Bearer stranger" }, method: "DELETE" });
     expect(stranger.status).toBe(403);
     const missing = await fetch(`${base}/v1/collections/nope`, { headers: { authorization: "Bearer owner" }, method: "DELETE" });
