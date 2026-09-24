@@ -1,9 +1,9 @@
 const STEPS = [
-  "Sync pulls 12 saves from the demo account.",
-  "Briefs land on every save with reasons attached.",
-  "One claim checks out, one prediction resolves true.",
-  "The Morning Paper assembles: resolved, missed, one debate.",
-  "Playback reads it aloud. Total runtime under a minute.",
+  "A local sample corpus stands in for your saved X posts.",
+  "Search and briefs show how saved context can stay close.",
+  "Source posts stay visible beside the local brief.",
+  "A Morning Paper gives the corpus a quieter review.",
+  "This is an illustrative demo, not a live account flow.",
 ];
 
 const STEP_MS = 1200;
@@ -35,7 +35,7 @@ function play(list, status, button) {
     renderSteps(list, done);
     if (done >= STEPS.length) {
       window.clearInterval(timer);
-      status.replaceChildren("Demo complete. That was the whole product.");
+      status.replaceChildren("Demo complete. This was an illustrative sample.");
       button.disabled = false;
     }
   }, STEP_MS);

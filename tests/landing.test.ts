@@ -13,7 +13,15 @@ describe("landing", () => {
 
   it("carries description meta and labelled demo", () => {
     expect(page).toContain('name="description"');
-    expect(page).toContain('aria-label="Interactive demo"');
+    expect(page).toContain('aria-label="Interactive illustrative demo"');
+  });
+
+  it("uses verified local-first claims and labels the install path", () => {
+    expect(page).toContain("Your corpus stays on your device until you explicitly share an object.");
+    expect(page).toContain("There is no hosted install claim here.");
+    expect(page).not.toContain("No login, no keys, no Premium");
+    expect(page).not.toContain("Nothing phones home.");
+    expect(page).not.toContain("Ask saved posts with source citations");
   });
 
   it("loads styles and demo script relatively", () => {
@@ -21,10 +29,11 @@ describe("landing", () => {
     expect(page).toContain('src="demo.js"');
   });
 
-  it("scripts a five-step demo with motion respect", () => {
+  it("scripts a five-step illustrative demo with motion respect", () => {
     expect(demo).toContain("demo-play");
     expect(demo).toContain("prefers-reduced-motion");
-    expect(demo.match(/Sync pulls|Briefs land|prediction resolves|Morning Paper|Playback/)?.length).toBeGreaterThan(0);
+    expect(demo).toContain("illustrative demo");
+    expect(demo).toContain("not a live account flow");
   });
 
   it("ships crawler files and stays featherweight", () => {
