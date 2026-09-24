@@ -1,4 +1,4 @@
-import { askSaves, buildAskPrompt, retrieveContext } from "../src/lib/ask.js";
+import { askSaves, buildAskPrompt, parseCitedSourceIds, retrieveContext } from "../src/lib/ask.js";
 import type { GrokEvent } from "../src/lib/grok.js";
 import { describe, expect, it } from "vitest";
 
@@ -21,6 +21,28 @@ describe("ask", () => {
   it("respects the limit", () => {
     const many = Array.from({ length: 10 }, (_, i) => ({ authorHandle: "h", id: `p${i}`, text: "kernel notes" }));
     expect(retrieveContext(many, "kernel", 3)).toHaveLength(3);
+  });
+
+  it("returns only valid cited source IDs", () => {
+    expect(parseCitedSourceIds("Answer [2] then [1] then [2].", POSTS)).toEqual(["e1", "k1"]);
+  });
+
+  it("fails closed for missing, malformed, and out-of-range citations", () => {
+    expect(parseCitedSourceIds("No citation here.", POSTS)).toEqual([]);
+    expect(parseCitedSourceIds("Malformed [1 citation.", POSTS)).toEqual([]);
+    expect(parseCitedSourceIds("Wrong [one].", POSTS)).toEqual([]);
+    expect(parseCitedSourceIds("Unknown [3].", POSTS)).toEqual([]);
+    expect(parseCitedSourceIds("Out of range [2].", POSTS.slice(0, 1))).toEqual([]);
+  });
+
+  it("only returns source IDs for citations present in the answer", async () => {
+    const result = await askSaves(
+      "kernel eval",
+      POSTS,
+      () => scripted("Kernels win [2]."),
+      "c",
+    );
+    expect(result.sources).toEqual(["e1"]);
   });
 
   it("builds cited prompts", () => {
