@@ -27,6 +27,50 @@ import { createQuotaSend } from "./lib/quota.js";
 import { scheduleTasteProfile, type ProfileJobHandle } from "./lib/profile-job.js";
 
 const buttons = [...document.querySelectorAll<HTMLButtonElement>("#zone-nav [data-zone]")];
+const palette = document.getElementById("palette");
+const paletteInput = document.getElementById("palette-input") as HTMLInputElement | null;
+const paletteList = document.getElementById("palette-list");
+let paletteReturnFocus: HTMLElement | undefined;
+
+function isEditableTarget(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && (target.matches("input, textarea, select") || target.isContentEditable);
+}
+
+function paletteOptions(): HTMLButtonElement[] {
+  return paletteList === null ? [] : [...paletteList.querySelectorAll<HTMLButtonElement>("button")];
+}
+
+function openPalette(): void {
+  if (palette === null || paletteInput === null || palette.hidden === false) return;
+  paletteReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : undefined;
+  palette.hidden = false;
+  renderPalette(paletteInput.value);
+  paletteInput.setAttribute("aria-expanded", "true");
+  paletteInput.focus();
+}
+
+function closePalette(): void {
+  if (palette === null || paletteInput === null || palette.hidden) return;
+  palette.hidden = true;
+  paletteInput.setAttribute("aria-expanded", "false");
+  if (paletteReturnFocus?.isConnected === true) paletteReturnFocus.focus();
+  paletteReturnFocus = undefined;
+}
+
+function containPaletteFocus(event: KeyboardEvent): void {
+  if (event.key !== "Tab" || palette?.hidden !== false) return;
+  const focusable = paletteInput === null ? [] : [paletteInput, ...paletteOptions()];
+  if (focusable.length === 0) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first && last !== undefined) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last && first !== undefined) {
+    event.preventDefault();
+    first.focus();
+  }
+}
 
 function activate(zone: Zone): void {
   for (const button of buttons) {
@@ -44,18 +88,42 @@ for (const button of buttons) {
   });
 }
 
+for (const [index, button] of buttons.entries()) {
+  button.addEventListener("keydown", (event) => {
+    let nextIndex: number | undefined;
+    if (event.key === "ArrowRight") nextIndex = (index + 1) % buttons.length;
+    if (event.key === "ArrowLeft") nextIndex = (index - 1 + buttons.length) % buttons.length;
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = buttons.length - 1;
+    if (nextIndex === undefined) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const next = buttons[nextIndex];
+    const zone = next?.dataset["zone"] ?? "";
+    if (next !== undefined && isZone(zone)) {
+      next.focus();
+      activate(zone);
+    }
+  });
+}
+
 document.addEventListener("keydown", (event) => {
-  const palette = document.getElementById("palette");
+  if (event.key === "Tab") {
+    containPaletteFocus(event);
+    return;
+  }
+  if (isEditableTarget(event.target)) return;
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
     event.preventDefault();
-    palette?.toggleAttribute("hidden");
-    document.getElementById("palette-input")?.focus();
+    if (palette?.hidden === false) closePalette();
+    else openPalette();
     return;
   }
   if (event.key === "Escape") {
-    palette?.setAttribute("hidden", "");
+    closePalette();
     return;
   }
+  if (event.target instanceof HTMLElement && event.target.closest("#zone-nav") !== null) return;
   if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
     const current = buttons.findIndex((button) => button.getAttribute("aria-selected") === "true");
     const delta = event.key === "ArrowRight" ? 1 : -1;
@@ -71,7 +139,7 @@ document.addEventListener("keydown", (event) => {
 });
 
 function runCommand(id: CommandId): void {
-  document.getElementById("palette")?.setAttribute("hidden", "");
+  closePalette();
   switch (id) {
     case "go-library":
       activate("library");
@@ -90,26 +158,42 @@ function runCommand(id: CommandId): void {
 }
 
 function renderPalette(query: string): void {
-  const list = document.getElementById("palette-list");
-  if (list === null) return;
-  list.replaceChildren();
+  if (paletteList === null) return;
+  paletteList.replaceChildren();
   for (const command of filterCommands(query)) {
     const item = document.createElement("li");
-    item.setAttribute("role", "option");
+    item.setAttribute("role", "presentation");
     const button = document.createElement("button");
     button.type = "button";
+    button.setAttribute("role", "option");
+    button.setAttribute("aria-selected", "false");
     button.replaceChildren(`${command.title} (${command.hint})`);
     button.addEventListener("click", () => runCommand(command.id));
     item.append(button);
-    list.append(item);
+    paletteList.append(item);
   }
+  paletteInput?.setAttribute("aria-expanded", String(paletteList.childElementCount > 0));
 }
 
-document.getElementById("palette-input")?.addEventListener("input", (event) => {
+paletteInput?.addEventListener("input", (event) => {
   renderPalette((event.target as HTMLInputElement).value);
 });
 
-document.getElementById("palette-input")?.addEventListener("keydown", (event) => {
+paletteInput?.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") {
+    event.preventDefault();
+    closePalette();
+    return;
+  }
+  if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+    const options = paletteOptions();
+    const target = event.key === "ArrowDown" ? options[0] : options[options.length - 1];
+    if (target !== undefined) {
+      event.preventDefault();
+      target.focus();
+    }
+    return;
+  }
   if (event.key === "Enter") {
     const first = filterCommands((event.target as HTMLInputElement).value)[0];
     if (first !== undefined) runCommand(first.id);
