@@ -100,6 +100,22 @@ try {
   if (await page.evaluate(() => document.activeElement?.id) !== "palette-input") {
     throw new Error("dialog focus did not wrap forwards");
   }
+  await page.locator("#palette-input").fill("Check session");
+  await page.keyboard.press("Enter");
+  if (await page.locator("#palette").getAttribute("hidden") === null || await page.locator("#session-banner").count() !== 1) {
+    throw new Error("check-session command had no observable action");
+  }
+
+  const optionsPage = await context.newPage();
+  await optionsPage.goto(`chrome-extension://${extensionId}/src/options.html`, { waitUntil: "domcontentloaded" });
+  if (await optionsPage.locator("#sync-card").count() !== 0) {
+    throw new Error("dead sync control remains visible");
+  }
+  await optionsPage.locator("#session-check").click();
+  if ((await optionsPage.locator("#session-state").textContent())?.trim() === "") {
+    throw new Error("session check control had no observable action");
+  }
+  await optionsPage.close();
   console.log("extension panel loaded from unpacked dist");
 } finally {
   if (context) await context.close();
