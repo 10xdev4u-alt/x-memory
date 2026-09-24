@@ -1,30 +1,57 @@
 ## What
 
-Brief description of what this PR does.
+State the shipped behavior in one or two sentences.
+
+Closes #
 
 ## Why
 
-Motivation and context. Link the issue.
+Link the confirmed issue and explain user, system, security, privacy, or release impact.
 
-## How
+## Scope
 
-Key implementation details worth highlighting.
+- In scope:
+- Out of scope:
+
+## Evidence
+
+- Failing test or reproduction:
+- Static, contract, benchmark, or security evidence:
+- Before behavior:
+- After behavior:
 
 ## Testing
 
-- [ ] Unit tests added or updated
+List exact commands and results.
+
+- [ ] Tests added or updated
 - [ ] Typecheck passes
-- [ ] Build passes
-- [ ] Manual testing performed
-- [ ] Screenshots attached (UI changes)
+- [ ] Lint passes
+- [ ] Coverage meets the repository threshold
+- [ ] Extension build passes
+- [ ] Server build passes when affected
+- [ ] Package and artifact checks pass when affected
+- [ ] Security and dependency checks pass
+- [ ] Accessibility checks pass when UI changes
+- [ ] E2E checks pass for critical flows
+- [ ] Manual runtime evidence recorded
+- [ ] Screenshots attached for pixel changes
 
-## Checklist
+## Review evidence
 
-- [ ] Single issue scope, no drive-bys
-- [ ] Self-review completed
-- [ ] Docs updated when behavior changed
-- [ ] Unslop pass when words changed
-- [ ] No secrets, no new permissions without sign-off
-- [ ] Grok calls cache-first where applicable
+- Change classifier and risk:
+- Snapshot and relevant context:
+- Analyzer gaps:
+- Reproduction or verifier:
+- False-positive review:
+- Rollback:
 
-Closes #
+## Policy checklist
+
+- [ ] One issue, one branch, one logical change
+- [ ] Commit subjects contain exactly six words
+- [ ] `the-ai-developer` is the only co-author
+- [ ] No secrets, generated output, or private data
+- [ ] Documentation describes shipped behavior
+- [ ] Public words pass unslop
+- [ ] No force push, amend after push, squash, or rebase merge
