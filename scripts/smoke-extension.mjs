@@ -50,7 +50,16 @@ try {
     "--user-data-dir=" + userDataDir,
     "--dump-dom",
     `chrome-extension://${extensionId}/src/panel.html`
-  ], { encoding: "utf8", timeout: 15000, stdio: ["ignore", "pipe", "pipe"] });
+  ], {
+    encoding: "utf8",
+    env: {
+      PATH: process.env.PATH ?? "",
+      HOME: userDataDir,
+      XDG_CONFIG_HOME: userDataDir
+    },
+    timeout: 15000,
+    stdio: ["ignore", "pipe", "pipe"]
+  });
   if (!dom.includes("<title>x-memory</title>") || !dom.includes('id="zone-nav"') || !dom.includes('id="library"')) {
     throw new Error("extension panel did not load correctly");
   }
