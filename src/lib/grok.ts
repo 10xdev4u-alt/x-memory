@@ -122,8 +122,9 @@ export async function* sendGrokMessage(
     const { done, value } = await reader.read();
     if (done) break;
     const chunk = decoder.decode(value, { stream: true });
-    fullText += extractText(chunk);
-    if (chunk.length > 0) yield { delta: chunk, type: "text" };
+    const text = extractText(chunk);
+    fullText += text;
+    if (text.length > 0) yield { delta: text, type: "text" };
   }
   yield { fullText, type: "done" };
 }

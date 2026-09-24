@@ -78,7 +78,10 @@ describe("grok pipe", () => {
     const events = await collect(MESSAGE, fetchImpl as unknown as typeof fetch);
     expect(seen).toEqual([["https://grok.x.com/2/grok/add_response.json", "POST", "req-1"]]);
     expect(events[events.length - 1]).toMatchObject({ fullText: "Hello", type: "done" });
-    expect(events.slice(0, -1).every((event) => event.type === "text")).toBe(true);
+    expect(events.slice(0, -1)).toEqual([
+      { delta: "Hel", type: "text" },
+      { delta: "lo", type: "text" },
+    ]);
   });
 
   it("rejects malformed and unexpected structured payloads", () => {
