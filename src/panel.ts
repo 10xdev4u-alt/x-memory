@@ -24,6 +24,7 @@ import { listViews, matchView } from "./lib/views.js";
 import { readSession } from "./lib/settings.js";
 import { sessionMessage } from "./lib/session-machine.js";
 import { applyTheme } from "./lib/theme.js";
+import { createQuotaSend } from "./lib/quota.js";
 
 const buttons = [...document.querySelectorAll<HTMLButtonElement>("#zone-nav [data-zone]")];
 
@@ -577,7 +578,7 @@ async function generatePaper(status: HTMLElement, generate: HTMLElement): Promis
       conversationId,
       markdown: renderPaperMarkdown,
       queue: new ThrottleQueue(),
-      send: (message) => sendGrokMessage(message),
+      send: createQuotaSend((message) => sendGrokMessage(message)),
       since: Date.now() - 24 * 60 * 60 * 1000,
       speech: paperToSpeech,
     });

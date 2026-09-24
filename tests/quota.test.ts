@@ -1,5 +1,6 @@
 import {
   checkQuota,
+  createQuotaSend,
   DEFAULT_BUDGET,
   estimateInputChars,
   guardSend,
@@ -28,6 +29,10 @@ beforeEach(() => {
 const T0 = 1000000;
 const BUDGET = { maxCalls: 2, maxInputChars: 100, windowMs: 60000 };
 
+async function* completed(text: string): AsyncGenerator<{ fullText: string; type: "done" }, void, void> {
+  yield { fullText: text, type: "done" };
+}
+
 describe("quota", () => {
   it("allows everything with no usage", () => {
     expect(checkQuota(BUDGET, undefined, T0)).toMatchObject({ allowed: true, remainingCalls: 2, remainingChars: 100 });
@@ -54,6 +59,54 @@ describe("quota", () => {
     await expect(guardSend("ok", BUDGET, T0)).resolves.toBeUndefined();
     await recordUsage(2, 0, T0, BUDGET.windowMs);
     await expect(guardSend("ok", BUDGET, T0)).rejects.toThrow(/resumes in/);
+  });
+
+  it("guards a production send and records usage after dispatch", async () => {
+    let calls = 0;
+    const send = createQuotaSend((message) => {
+      calls += 1;
+      return completed(message.message);
+    }, BUDGET, () => T0);
+    const events = [];
+    for await (const event of send({ conversationId: "c", message: "hello" })) events.push(event);
+
+    expect(calls).toBe(1);
+    expect(events).toEqual([{ fullText: "hello", type: "done" }]);
+    expect(await readUsage()).toMatchObject({ calls: 1, inputChars: 5, windowStart: T0 });
+  });
+
+  it("records usage when a dispatched send fails", async () => {
+    const send = createQuotaSend(async function* failing() {
+      throw new Error("network");
+      yield { fullText: "", type: "done" as const };
+    }, BUDGET, () => T0);
+    const consume = async () => {
+      for await (const _event of send({ conversationId: "c", message: "hello" })) {
+        return;
+      }
+    };
+
+    await expect(consume()).rejects.toThrow("network");
+    expect(await readUsage()).toMatchObject({ calls: 1, inputChars: 5 });
+  });
+
+  it("serializes concurrent sends so the budget cannot be bypassed", async () => {
+    let calls = 0;
+    const budget = { maxCalls: 1, maxInputChars: 100, windowMs: 60000 };
+    const send = createQuotaSend(() => {
+      calls += 1;
+      return completed("ok");
+    }, budget, () => T0);
+    const consume = async () => {
+      for await (const _event of send({ conversationId: "c", message: "hello" })) {
+        return;
+      }
+    };
+
+    const results = await Promise.allSettled([consume(), consume()]);
+    expect(results.map((result) => result.status)).toEqual(["fulfilled", "rejected"]);
+    expect(calls).toBe(1);
+    expect(await readUsage()).toMatchObject({ calls: 1, inputChars: 5 });
   });
 
   it("estimates input size", () => {
