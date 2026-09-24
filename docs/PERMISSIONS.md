@@ -6,7 +6,7 @@ Least privilege. Every entry below names its job. New entries need sign-off in t
 
 | Host | Job |
 |---|---|
-| `https://x.com/*` | Session GraphQL reads and user-triggered writes. The only site the extension ever calls. |
+| `https://x.com/*` | Reserved for user-triggered flows that use an approved X boundary. Private GraphQL operation discovery is blocked from release. |
 
 ## Permissions
 
@@ -20,7 +20,7 @@ Least privilege. Every entry below names its job. New entries need sign-off in t
 
 | Match | Job |
 |---|---|
-| `https://x.com/*` at `document_idle` | Ambient-session network actor. Cookies attach automatically. Nothing exfiltrated. |
+| `https://x.com/*` at `document_idle` | Reserved for user-authorized X flows using the approved boundary. Private operation discovery and bearer extraction are blocked from release. |
 
 ## Content security policy
 
