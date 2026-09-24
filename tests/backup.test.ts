@@ -54,4 +54,37 @@ describe("backup", () => {
     expect(await countRecords(check, "posts")).toBe(0);
     check.close();
   });
+
+  it("rejects malformed records before touching seeded data", async () => {
+    const { putRecords } = await import("../src/lib/db.js");
+    const seed = await openDb(indexedDB);
+    await putRecords(seed, "posts", [POST]);
+    await putRecords(seed, "briefs", [{ createdAt: 1, postId: "p1", text: "b" }]);
+    await putRecords(seed, "media", [{ id: "m", kind: "link", postId: "p1", url: "u" }]);
+    seed.close();
+    const valid = {
+      briefs: [{ createdAt: 1, postId: "p1", text: "b" }],
+      exportedAt: "2026-01-01T00:00:00.000Z",
+      media: [{ id: "m", kind: "link", postId: "p1", url: "u" }],
+      posts: [POST],
+      version: 1
+    };
+    const invalidBundles = [
+      JSON.stringify({ ...valid, posts: [{}] }),
+      JSON.stringify({ ...valid, posts: [{ ...POST, references: { quotedIds: "p1" } }] }),
+      JSON.stringify({ ...valid, briefs: [{ ...valid.briefs[0], postId: "missing" }] }),
+      JSON.stringify({ ...valid, media: [{ ...valid.media[0], postId: "missing" }] }),
+      JSON.stringify({ ...valid, posts: [POST, { ...POST }] })
+    ];
+
+    for (const raw of invalidBundles) {
+      await expect(restoreBackup(raw, { dbFactory: indexedDB })).rejects.toThrow();
+    }
+
+    const check = await openDb(indexedDB);
+    expect(await countRecords(check, "posts")).toBe(1);
+    expect(await countRecords(check, "briefs")).toBe(1);
+    expect(await countRecords(check, "media")).toBe(1);
+    check.close();
+  });
 });
