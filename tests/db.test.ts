@@ -1,11 +1,12 @@
-import { countRecords, getRecord, openDb, putRecords } from "../src/lib/db.js";
+import { clearStore, countRecords, getRecord, openDb, putRecords } from "../src/lib/db.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { indexedDB } from "fake-indexeddb";
+import { IDBObjectStore, indexedDB } from "fake-indexeddb";
 
 vi.stubGlobal("indexedDB", indexedDB);
 
 describe("corpus schema", () => {
   afterEach(async () => {
+    vi.restoreAllMocks();
     const dbs = await indexedDB.databases();
     await Promise.all(dbs.map((info) => info.name !== undefined && indexedDB.deleteDatabase(info.name)));
   });
@@ -34,6 +35,19 @@ describe("corpus schema", () => {
     expect(await countRecords(db, "authors")).toBe(1);
     await putRecords(db, "briefs", [{ createdAt: 5, postId: "p1", text: "brief" }]);
     expect(await getRecord(db, "briefs", "p1")).toMatchObject({ text: "brief" });
+    db.close();
+  });
+
+  it("rejects when a clear request succeeds before transaction abort", async () => {
+    const originalClear = IDBObjectStore.prototype.clear;
+    vi.spyOn(IDBObjectStore.prototype, "clear").mockImplementation(function (this: IDBObjectStore) {
+      const request = originalClear.call(this);
+      request.addEventListener("success", () => this.transaction?.abort());
+      return request;
+    });
+    const db = await openDb(indexedDB);
+
+    await expect(clearStore(db, "posts")).rejects.toThrow(/clear posts store failed/);
     db.close();
   });
 
