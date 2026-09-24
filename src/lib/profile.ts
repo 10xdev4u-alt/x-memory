@@ -32,15 +32,35 @@ export interface TasteProfile {
   };
 }
 
-export async function buildTasteProfile(deps?: { dbFactory?: IDBFactory; dbName?: string }): Promise<TasteProfile> {
+export interface ProfileBuildDeps {
+  dbFactory?: IDBFactory;
+  dbName?: string;
+  onProgress?: (progress: number) => void;
+  posts?: PostRecord[];
+  signal?: AbortSignal;
+}
+
+function throwIfAborted(signal: AbortSignal | undefined): void {
+  if (signal?.aborted === true) throw new DOMException("Profile build cancelled", "AbortError");
+}
+
+export async function buildTasteProfile(deps?: ProfileBuildDeps): Promise<TasteProfile> {
   const db = await openDb(deps?.dbFactory ?? indexedDB, deps?.dbName);
   try {
-    const posts = await allRecords<PostRecord>(db, "posts");
+    throwIfAborted(deps?.signal);
+    deps?.onProgress?.(10);
+    const posts = deps?.posts ?? await allRecords<PostRecord>(db, "posts");
+    throwIfAborted(deps?.signal);
+    deps?.onProgress?.(35);
     const clusters = clusterPosts(posts.map((post) => ({ authorHandle: post.authorHandle, id: post.id, text: post.text })));
+    throwIfAborted(deps?.signal);
+    deps?.onProgress?.(60);
     const ranked = await rankAuthors(db, 5);
     const collections = await listCollections();
     const briefs = await countRecords(db, "briefs");
     const loops = deps === undefined ? await loopCounts() : await loopCounts(deps);
+    throwIfAborted(deps?.signal);
+    deps?.onProgress?.(100);
     return {
       clusters: clusters.slice(0, 5).map((cluster) => ({ count: cluster.postIds.length, label: cluster.label })),
       collections: collections.map((collection) => ({ count: collection.postIds.length, name: collection.name })),

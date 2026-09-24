@@ -14,7 +14,8 @@ Search stays interactive past 20k posts. Index builds are one-time per session.
 
 ## Design rules that keep it fast
 
-- Clustering runs in background jobs, never on the render path.
+- Clustering runs in scheduled jobs, never on the render path. The panel shows progress and can cancel the active job.
+- Taste-profile results are cached by account and corpus version; a changed corpus schedules a new build without discarding the previous valid cache.
 - Signals shared by more than five percent of the corpus do not cluster. Common words carry no grouping value and explode candidate pairs on dense data. This cap fixed a crash at 20k posts.
 - Library lists render at most 100 rows. Full scans happen in workers with progress callbacks.
 - Media lookups use the by-post index, never full scans.

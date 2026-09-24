@@ -7,7 +7,6 @@ import { buildReaderModel, snippet } from "./lib/reader-model.js";
 import { createCollection, forkCollection, listCollections } from "./lib/collections.js";
 import { canShareInline, importSharedPackage, packageCollection, parseSharedLink, shareLink } from "./lib/sharing.js";
 import { getVisibility, setVisibility, visibilityBadge, type Visibility } from "./lib/visibility.js";
-import { buildTasteProfile } from "./lib/profile.js";
 import { loopCounts, resolvePost } from "./lib/loops.js";
 import { ensureConversation, GrokError, sendGrokMessage } from "./lib/grok.js";
 import { isPaperDue, readLatestPaper, runPaperJob } from "./lib/paper-job.js";
@@ -25,6 +24,7 @@ import { readSession } from "./lib/settings.js";
 import { sessionMessage } from "./lib/session-machine.js";
 import { applyTheme } from "./lib/theme.js";
 import { createQuotaSend } from "./lib/quota.js";
+import { scheduleTasteProfile, type ProfileJobHandle } from "./lib/profile-job.js";
 
 const buttons = [...document.querySelectorAll<HTMLButtonElement>("#zone-nav [data-zone]")];
 
@@ -331,21 +331,52 @@ async function importSharedLink(link: string): Promise<string | undefined> {
   return `${result.posts} posts in a new collection`;
 }
 
-async function renderProfile(): Promise<void> {
+let activeProfileJob: ProfileJobHandle | undefined;
+
+function renderProfile(): void {
+  activeProfileJob?.cancel();
   const library = document.getElementById("library");
   if (library === null) return;
-  const profile = await buildTasteProfile();
   let card = document.getElementById("taste-profile");
   if (card === null) {
     card = document.createElement("div");
     card.id = "taste-profile";
     library.prepend(card);
   }
-  const minds = profile.minds.slice(0, 3).map((mind) => `@${mind.handle} (${mind.score})`).join(", ") || "none yet";
-  const clusters = profile.clusters.slice(0, 3).map((cluster) => `${cluster.label} (${cluster.count})`).join(", ") || "none yet";
-  card.replaceChildren(
-    `Taste profile: ${profile.stats.posts} posts, ${profile.stats.briefs} briefs, ${profile.stats.loopsOpen} open loops. Minds: ${minds}. Clusters: ${clusters}.`,
-  );
+  const status = document.createElement("p");
+  status.setAttribute("role", "status");
+  const cancel = document.createElement("button");
+  cancel.type = "button";
+  cancel.replaceChildren("Cancel profile");
+  card.replaceChildren(status, cancel);
+  status.replaceChildren("Taste profile: starting.");
+  const job = scheduleTasteProfile({
+    onState: (state) => {
+      if (activeProfileJob !== job) return;
+      if (state.status === "running") {
+        status.replaceChildren(`Taste profile: ${Math.round(state.progress)}%.`);
+      } else if (state.status === "ready" && state.profile !== undefined) {
+        const profile = state.profile;
+        const minds = profile.minds.slice(0, 3).map((mind) => `@${mind.handle} (${mind.score})`).join(", ") || "none yet";
+        const clusters = profile.clusters.slice(0, 3).map((cluster) => `${cluster.label} (${cluster.count})`).join(", ") || "none yet";
+        status.replaceChildren(
+          `Taste profile: ${profile.stats.posts} posts, ${profile.stats.briefs} briefs, ${profile.stats.loopsOpen} open loops. Minds: ${minds}. Clusters: ${clusters}.`,
+        );
+        cancel.remove();
+      } else if (state.status === "cancelled") {
+        status.replaceChildren("Taste profile: cancelled.");
+        cancel.remove();
+      } else if (state.status === "error") {
+        status.replaceChildren(`Taste profile unavailable: ${state.error ?? "unknown error"}`);
+        cancel.remove();
+      }
+    },
+  });
+  activeProfileJob = job;
+  cancel.addEventListener("click", () => job.cancel());
+  void job.promise.finally(() => {
+    if (activeProfileJob === job) activeProfileJob = undefined;
+  });
 }
 
 async function renderLibrary(activeCollection: string | null = null): Promise<void> {
@@ -436,7 +467,7 @@ async function renderLibrary(activeCollection: string | null = null): Promise<vo
   }
   refreshBulk();
   await renderCollections(activeCollection);
-  await renderProfile();
+  renderProfile();
 }
 
 async function exportSelection(selection: Selection): Promise<void> {
