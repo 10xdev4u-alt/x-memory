@@ -62,6 +62,44 @@ try {
   if (await page.title() !== "x-memory" || await page.locator("#library").count() !== 1) {
     throw new Error("extension panel did not load correctly");
   }
+  const libraryTab = page.locator('#zone-nav [data-zone="library"]');
+  await libraryTab.focus();
+  await page.keyboard.press("ArrowRight");
+  if (await page.locator('#zone-nav [data-zone="reader"]').getAttribute("aria-selected") !== "true") {
+    throw new Error("tab arrow navigation failed");
+  }
+  await page.keyboard.press("ArrowLeft");
+  if (await libraryTab.getAttribute("aria-selected") !== "true") {
+    throw new Error("tab reverse navigation failed");
+  }
+
+  const account = page.locator("#account-current");
+  await account.focus();
+  await page.keyboard.press("Control+K");
+  if (await page.locator("#palette").getAttribute("hidden") !== null) {
+    throw new Error("command palette did not open");
+  }
+  await page.keyboard.press("Escape");
+  if (await page.locator("#palette").getAttribute("hidden") === null || await page.evaluate(() => document.activeElement?.id) !== "account-current") {
+    throw new Error("command palette did not close and restore focus");
+  }
+
+  await page.keyboard.press("Control+K");
+  await page.locator("#palette-input").press("1");
+  if (await page.locator("#palette-input").inputValue() !== "1" || await libraryTab.getAttribute("aria-selected") !== "true") {
+    throw new Error("global shortcut intercepted editable input");
+  }
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Control+K");
+  await page.locator("#palette-input").fill("");
+  await page.keyboard.press("Shift+Tab");
+  if (await page.evaluate(() => document.activeElement?.getAttribute("role")) !== "option") {
+    throw new Error("dialog focus did not wrap backwards");
+  }
+  await page.keyboard.press("Tab");
+  if (await page.evaluate(() => document.activeElement?.id) !== "palette-input") {
+    throw new Error("dialog focus did not wrap forwards");
+  }
   console.log("extension panel loaded from unpacked dist");
 } finally {
   if (context) await context.close();

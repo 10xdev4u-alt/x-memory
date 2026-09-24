@@ -18,8 +18,8 @@
       <button id="account-current" type="button">Account</button>
       <ul id="account-list" hidden></ul>
     </div>
-    <div hidden id="palette" role="dialog" aria-label="Commands">
-      <input id="palette-input" type="text" placeholder="Type a command" aria-label="Command search" />
+    <div hidden id="palette" role="dialog" aria-modal="true" aria-label="Command palette">
+      <input id="palette-input" type="text" placeholder="Type a command" aria-label="Command search" role="combobox" aria-autocomplete="list" aria-controls="palette-list" aria-expanded="false" />
       <ul id="palette-list" role="listbox" aria-label="Commands"></ul>
     </div>
     <script src="panel.js" type="module"></script>
