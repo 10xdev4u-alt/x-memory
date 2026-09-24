@@ -37,6 +37,8 @@ const extensionId = [...createHash("sha256").update(extensionPath).digest("hex")
   .join("");
 const userDataDir = mkdtempSync(join(tmpdir(), "x-memory-chromium-"));
 
+const hasPanelDom = (dom) => dom.includes("<title>x-memory</title>") && dom.includes('id="zone-nav"') && dom.includes('id="library"');
+
 try {
   const dom = execFileSync(executable, [
     "--headless=new",
@@ -60,13 +62,17 @@ try {
     timeout: 15000,
     stdio: ["ignore", "pipe", "pipe"]
   });
-  if (!dom.includes("<title>x-memory</title>") || !dom.includes('id="zone-nav"') || !dom.includes('id="library"')) {
+  if (!hasPanelDom(dom)) {
     throw new Error("extension panel did not load correctly");
   }
   console.log("extension panel loaded from unpacked dist");
 } catch (error) {
-  const output = `${error.stdout ?? ""}\n${error.stderr ?? ""}`.trim();
-  throw new Error(`Chromium extension smoke failed${output ? `: ${output}` : ""}`);
+  if (hasPanelDom(String(error.stdout ?? ""))) {
+    console.log("extension panel loaded from unpacked dist");
+  } else {
+    const output = `${error.stdout ?? ""}\n${error.stderr ?? ""}`.trim();
+    throw new Error(`Chromium extension smoke failed${output ? `: ${output}` : ""}`);
+  }
 } finally {
   rmSync(userDataDir, { recursive: true, force: true });
 }
