@@ -14,6 +14,8 @@ The server persists objects, owner hashes, and abuse reports to `XMEM_API_PATH` 
 
 Browser origins are exact-match only. Set `XMEM_CORS_ORIGINS` to a comma-separated allowlist of extension or other trusted origins. Requests with an unlisted `Origin` receive 403; allowed preflight requests receive explicit methods, headers, credentials, and max-age headers. No public deployment origin is assumed.
 
+Reports retain at most 1,000 entries for 90 days. Moderator reads use `limit` (1–100) and an optional `before` timestamp cursor. Report submission and moderator reads have separate rate-limit buckets.
+
 ## Routes
 
 - `GET /health`

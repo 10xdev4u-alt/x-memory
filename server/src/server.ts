@@ -34,6 +34,11 @@ export interface AbuseReport {
   reporter: string;
 }
 
+export const REPORT_MAX_COUNT = 1_000;
+export const REPORT_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
+
+const REPORT_PAGE_MAX = 100;
+
 export interface ApiStore {
   boards: Map<string, PublicBoard>;
   collections: Map<string, PublicCollection>;
@@ -354,7 +359,7 @@ export function createApiServer(store: ApiStore, options: ApiOptions): Server {
           send(response, 401, { error: "unauthorized" });
           return;
         }
-        if (!checkRate(`write:${key}`, now)) {
+        if (!checkRate(`report:submit:${key}`, now)) {
           send(response, 429, { error: "rate limited" });
           return;
         }
@@ -381,6 +386,9 @@ export function createApiServer(store: ApiStore, options: ApiOptions): Server {
         const reportKind = body["kind"];
         const reportReason = body["reason"];
         await commitStore(store, () => {
+          store.reports = store.reports.filter((report) => now - report.at <= REPORT_RETENTION_MS);
+          const overflow = store.reports.length - REPORT_MAX_COUNT + 1;
+          if (overflow > 0) store.reports.splice(0, overflow);
           store.reports.push({
             at: now,
             id: reportId,
@@ -401,7 +409,25 @@ export function createApiServer(store: ApiStore, options: ApiOptions): Server {
           send(response, 403, { error: "moderator scope required" });
           return;
         }
-        send(response, 200, { reports: store.reports });
+        if (!checkRate("reports:read", now)) {
+          send(response, 429, { error: "rate limited" });
+          return;
+        }
+        const rawLimit = url.searchParams.get("limit");
+        const parsedLimit = rawLimit === null ? 50 : Number(rawLimit);
+        const limit = Number.isInteger(parsedLimit) && parsedLimit > 0 ? Math.min(parsedLimit, REPORT_PAGE_MAX) : 50;
+        const rawBefore = url.searchParams.get("before");
+        const before = rawBefore === null ? undefined : Number(rawBefore);
+        if (before !== undefined && (!Number.isFinite(before) || before < 0)) {
+          send(response, 400, { error: "invalid cursor" });
+          return;
+        }
+        const ordered = [...store.reports]
+          .filter((report) => before === undefined || report.at < before)
+          .sort((a, b) => b.at - a.at);
+        const reports = ordered.slice(0, limit);
+        const nextCursor = ordered.length > limit ? reports.at(-1)?.at ?? null : null;
+        send(response, 200, { nextCursor, reports });
         return;
       }
       const match = /^\/(v1)\/(collections|profiles|boards)\/([A-Za-z0-9_-]{1,120})$/.exec(url.pathname);

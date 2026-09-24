@@ -1,4 +1,4 @@
-import { createApiServer, durableStore, memoryStore, type ApiStore } from "../server/src/server.js";
+import { createApiServer, durableStore, memoryStore, REPORT_MAX_COUNT, REPORT_RETENTION_MS, type ApiStore } from "../server/src/server.js";
 import type { AddressInfo } from "node:net";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -227,5 +227,39 @@ describe("public api", () => {
     expect(list.status).toBe(200);
     const body = (await list.json()) as { reports: Array<{ reason: string }> };
     expect(body.reports.map((report) => report.reason)).toEqual(["spam account"]);
+  });
+
+  it("bounds report retention, count, pagination, and read rate", async () => {
+    const store = memoryStore();
+    const now = Date.now();
+    store.reports = Array.from({ length: REPORT_MAX_COUNT }, (_, index) => ({
+      at: index === 0 ? now - REPORT_RETENTION_MS - 1 : now - index,
+      id: `old-${index}`,
+      kind: "collections",
+      reason: "old",
+      reporter: "hash",
+    }));
+    const base = await start({ keys: ["publisher", "moderator"], limit: 2, moderators: ["moderator"] }, store);
+    const invalidBase = await start({ keys: ["publisher", "moderator"], moderators: ["moderator"] });
+    expect((await fetch(`${invalidBase}/v1/reports?before=bad`, { headers: { authorization: "Bearer moderator" } })).status).toBe(400);
+    const submit = await fetch(`${base}/v1/reports`, {
+      body: JSON.stringify({ id: "new", kind: "collections", reason: "new" }),
+      headers: { authorization: "Bearer publisher", "content-type": "application/json" },
+      method: "POST",
+    });
+    expect(submit.status).toBe(200);
+    expect(store.reports).toHaveLength(REPORT_MAX_COUNT);
+    expect(store.reports.some((report) => report.id === "old-0")).toBe(false);
+
+    const first = await fetch(`${base}/v1/reports?limit=10`, { headers: { authorization: "Bearer moderator" } });
+    const firstBody = (await first.json()) as { nextCursor: number | null; reports: Array<{ id: string }> };
+    expect(first.status).toBe(200);
+    expect(firstBody.reports).toHaveLength(10);
+    expect(firstBody.nextCursor).toEqual(expect.any(Number));
+
+    const second = await fetch(`${base}/v1/reports?limit=10&before=${firstBody.nextCursor}`, { headers: { authorization: "Bearer moderator" } });
+    expect(second.status).toBe(200);
+    const third = await fetch(`${base}/v1/reports?limit=10`, { headers: { authorization: "Bearer moderator" } });
+    expect(third.status).toBe(429);
   });
 });
