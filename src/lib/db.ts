@@ -51,6 +51,9 @@ export type StoreName = "posts" | "authors" | "media" | "briefs" | "claims" | "p
 export interface ClaimRecord {
   checkedAt: number;
   evidence?: string;
+  evidenceAt?: number;
+  evidenceSource?: string;
+  evidenceVerified?: boolean;
   id: string;
   postId: string;
   status: ClaimStatus;
@@ -64,6 +67,9 @@ export type PredictionStatus = "open" | "resolved-true" | "resolved-false" | "ex
 export interface PredictionRecord {
   checkedAt: number;
   evidence?: string;
+  evidenceAt?: number;
+  evidenceSource?: string;
+  evidenceVerified?: boolean;
   id: string;
   postId: string;
   status: PredictionStatus;

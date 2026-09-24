@@ -33,20 +33,37 @@ describe("predictions", () => {
     expect(parsePredictionLines("no predictions here")).toEqual([]);
   });
 
-  it("parses resolutions with open fallback", () => {
-    expect(parseResolution("TRUE: shipped")).toEqual({ evidence: "shipped", status: "resolved-true" });
-    expect(parseResolution("FALSE - delayed")).toEqual({ evidence: "delayed", status: "resolved-false" });
-    expect(parseResolution("UNCLEAR")).toEqual({ evidence: "", status: "open" });
-    expect(parseResolution("rambling")).toEqual({ evidence: "rambling", status: "open" });
+  it("parses resolutions only with a strong source", () => {
+    expect(parseResolution("TRUE\nSource: https://example.com/one\nEvidence: shipped")).toEqual({
+      evidence: "shipped",
+      source: "https://example.com/one",
+      status: "resolved-true",
+    });
+    expect(parseResolution("FALSE\nSource: https://example.com/two\nEvidence: delayed")).toEqual({
+      evidence: "delayed",
+      source: "https://example.com/two",
+      status: "resolved-false",
+    });
+    expect(parseResolution("UNCLEAR")).toEqual({ evidence: "", source: "", status: "open" });
+    expect(parseResolution("TRUE: no source")).toEqual({ evidence: "no source", source: "", status: "open" });
+    expect(parseResolution("TRUE\nSource: https://example.com/no-evidence")).toEqual({
+      evidence: "",
+      source: "https://example.com/no-evidence",
+      status: "open",
+    });
+    expect(parseResolution("rambling")).toEqual({ evidence: "rambling", source: "", status: "open" });
   });
 
   it("rejects oversized prediction output", () => {
     expect(parsePredictionLines("- " + "x".repeat(20_001))).toEqual([]);
-    expect(parseResolution("x".repeat(20_001))).toEqual({ evidence: "", status: "open" });
+    expect(parseResolution("x".repeat(20_001))).toEqual({ evidence: "", source: "", status: "open" });
   });
 
   it("resolves open predictions and persists", async () => {
-    const replies = ["TRUE: done", "FALSE: missed"];
+    const replies = [
+      "TRUE\nSource: https://example.com/one\nEvidence: done",
+      "FALSE\nSource: https://example.com/two\nEvidence: missed",
+    ];
     const send = () => scripted(replies.shift() ?? "UNCLEAR");
     const predictions = [
       { checkedAt: 0, id: "p1", postId: "x", status: "open" as const, text: "one" },
@@ -56,7 +73,12 @@ describe("predictions", () => {
     const result = await resolvePredictions(predictions, { conversationId: "c", dbFactory: indexedDB, queue: quiet, send });
     expect(result).toEqual({ expired: 0, resolved: 2, stillOpen: 0 });
     const db = await openDb(indexedDB);
-    expect(await getRecord(db, "predictions", "p1")).toMatchObject({ status: "resolved-true" });
+    expect(await getRecord(db, "predictions", "p1")).toMatchObject({
+      evidence: "done",
+      evidenceSource: "https://example.com/one",
+      evidenceVerified: false,
+      status: "resolved-true",
+    });
     db.close();
   });
 

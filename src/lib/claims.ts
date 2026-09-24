@@ -1,26 +1,37 @@
 import { getRecord, openDb, putRecords, type ClaimRecord, type ClaimStatus } from "./db.js";
+import { extractModelEvidence } from "./evidence.js";
 import { collectBriefText, type GrokSend } from "./briefs.js";
 import { ThrottleQueue } from "./queue.js";
 
 const MAX_MODEL_OUTPUT_LENGTH = 20_000;
 
+export interface VerdictResult {
+  evidence: string;
+  source: string;
+  status: ClaimStatus;
+}
+
 export function buildVerifyPrompt(claim: string): string {
   return [
     "Check whether the claim below still holds today.",
     "Start your reply with exactly one word: CONFIRMED, EVOLVED, or DEAD.",
-    "Follow with one line of evidence.",
+    "Then provide Source: followed by one HTTP(S) URL and Evidence: followed by one line.",
+    "If you cannot provide a source, use EVOLVED and explain why.",
     "",
     `Claim: ${claim.slice(0, 1000)}`,
   ].join("\n");
 }
 
-export function parseVerdict(reply: string): { evidence: string; status: ClaimStatus } {
-  if (reply.length > MAX_MODEL_OUTPUT_LENGTH) return { evidence: "", status: "evolving" };
+export function parseVerdict(reply: string): VerdictResult {
+  if (reply.length > MAX_MODEL_OUTPUT_LENGTH) return { evidence: "", source: "", status: "evolving" };
   const match = /^\s*(CONFIRMED|EVOLVED|DEAD)\b[\s:,\-]*(.*)$/is.exec(reply.trim());
-  if (match?.[1] === undefined) return { evidence: reply.trim().slice(0, 500), status: "evolving" };
+  const evidence = extractModelEvidence(reply, match?.[2] ?? reply.trim());
+  if (match?.[1] === undefined || !evidence.sourceIsStrong || evidence.text === "") {
+    return { evidence: evidence.text, source: evidence.source, status: "evolving" };
+  }
   const word = match[1].toLowerCase();
   const status: ClaimStatus = word === "confirmed" ? "fresh" : word === "dead" ? "dead" : "evolving";
-  return { evidence: (match[2] ?? "").trim().slice(0, 500), status };
+  return { evidence: evidence.text, source: evidence.source, status };
 }
 
 export interface VerifyDeps {
@@ -49,7 +60,16 @@ export async function verifyClaims(claims: ClaimRecord[], deps: VerifyDeps): Pro
         collectBriefText(deps.send, { conversationId: deps.conversationId, message: buildVerifyPrompt(claim.text) }),
       );
       const verdict = parseVerdict(reply);
-      await putRecords(db, "claims", [{ ...claim, checkedAt: Date.now(), evidence: verdict.evidence, status: verdict.status }]);
+      const now = Date.now();
+      await putRecords(db, "claims", [{
+        ...claim,
+        checkedAt: now,
+        evidence: verdict.evidence,
+        evidenceAt: now,
+        evidenceSource: verdict.source,
+        evidenceVerified: false,
+        status: verdict.status,
+      }]);
       result.checked += 1;
       if (verdict.status === "dead") result.dead += 1;
       if (verdict.status === "evolving") result.evolved += 1;

@@ -47,6 +47,9 @@ export async function gatherPaperInput(deps: PaperJobDeps): Promise<{
       ) {
         resolutions.push({
           evidence: prediction.evidence ?? "",
+          evidenceAt: prediction.evidenceAt ?? prediction.checkedAt,
+          evidenceSource: prediction.evidenceSource ?? "",
+          evidenceVerified: prediction.evidenceVerified === true,
           outcome: prediction.status === "resolved-true" ? "TRUE" : "FALSE",
           text: prediction.text,
         });
