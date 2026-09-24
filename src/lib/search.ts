@@ -37,6 +37,7 @@ export class SearchIndex {
 
   add(posts: SearchablePost[]): void {
     for (const post of posts) {
+      this.remove(post.id);
       this.documents.set(post.id, post);
       const counts = new Map<string, number>();
       for (const token of tokenize(`${post.text} ${post.authorHandle} ${post.authorName}`)) {
@@ -84,6 +85,21 @@ export class SearchIndex {
     }
     results.sort((a, b) => b.score - a.score || b.post.createdAt - a.post.createdAt);
     return results.map((result) => result.post);
+  }
+
+  remove(id: string): boolean {
+    const post = this.documents.get(id);
+    if (post === undefined) return false;
+    for (const token of new Set(tokenize(`${post.text} ${post.authorHandle} ${post.authorName}`))) {
+      const posting = this.postings.get(token);
+      if (posting === undefined) continue;
+      const count = posting.get(id);
+      if (count === undefined || count <= 1) posting.delete(id);
+      else posting.set(id, count - 1);
+      if (posting.size === 0) this.postings.delete(token);
+    }
+    this.documents.delete(id);
+    return true;
   }
 
   clear(): void {
