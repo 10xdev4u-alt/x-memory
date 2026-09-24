@@ -91,6 +91,27 @@ describe("public api", () => {
     expect((await fetch(`${base}/v1/collections/c1`, { headers: { authorization: "Bearer k1" }, method: "DELETE" })).status).toBe(404);
   });
 
+  it("rejects malformed nested documents without storing them", async () => {
+    const base = await start();
+    const headers = { authorization: "Bearer k1", "content-type": "application/json" };
+    const cases = [
+      ["profiles", "bad-profile", { clusters: [{ count: "many", label: "x" }], extra: true, generatedAt: 1, id: "bad-profile", minds: [] }],
+      ["collections", "bad-collection", { id: "bad-collection", name: "Bad", postIds: [1], updatedAt: 1 }],
+      ["boards", "bad-board", { id: "bad-board", kind: "bad", rows: [{}], updatedAt: 1 }],
+      ["profiles", "large-profile", { clusters: Array.from({ length: 501 }, (_, index) => ({ count: index, label: `c${index}` })), generatedAt: 1, id: "large-profile", minds: [] }],
+    ] as const;
+
+    for (const [kind, id, document] of cases) {
+      const put = await fetch(`${base}/v1/${kind}/${id}`, {
+        body: JSON.stringify(document),
+        headers,
+        method: "PUT",
+      });
+      expect(put.status).toBe(400);
+      expect((await fetch(`${base}/v1/${kind}/${id}`)).status).toBe(404);
+    }
+  });
+
   it("rate limits writers", async () => {
     const base = await start({ limit: 2 });
     const headers = { authorization: "Bearer k1", "content-type": "application/json" };
