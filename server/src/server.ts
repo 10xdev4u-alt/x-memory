@@ -200,44 +200,75 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function isStringArray(value: unknown): value is string[] {
-  return Array.isArray(value) && value.every((entry) => typeof entry === "string");
+const MAX_COLLECTION_POST_IDS = 5_000;
+const MAX_BOARD_ROWS = 5_000;
+const MAX_PROFILE_ITEMS = 500;
+const MAX_TEXT_LENGTH = 20_000;
+
+function hasOnlyKeys(value: Record<string, unknown>, allowed: string[]): boolean {
+  return Object.keys(value).every((key) => allowed.includes(key));
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function isBoundedString(value: unknown): value is string {
+  return typeof value === "string" && value.length <= MAX_TEXT_LENGTH;
+}
+
+function isStringArray(value: unknown, maxItems: number): value is string[] {
+  return Array.isArray(value) && value.length <= maxItems && value.every((entry) => isBoundedString(entry));
 }
 
 function validCollection(value: unknown): value is PublicCollection {
-  if (!isRecord(value)) return false;
+  if (!isRecord(value) || !hasOnlyKeys(value, ["description", "id", "name", "originId", "postIds", "updatedAt"])) return false;
   return (
-    typeof value["id"] === "string" &&
+    isBoundedString(value["id"]) &&
     value["id"] !== "" &&
-    typeof value["name"] === "string" &&
+    isBoundedString(value["name"]) &&
     value["name"] !== "" &&
-    Array.isArray(value["postIds"]) &&
-    value["postIds"].every((entry) => typeof entry === "string") &&
-    (value["description"] === undefined || typeof value["description"] === "string") &&
-    (value["originId"] === undefined || typeof value["originId"] === "string") &&
-    typeof value["updatedAt"] === "number"
+    isStringArray(value["postIds"], MAX_COLLECTION_POST_IDS) &&
+    (value["description"] === undefined || isBoundedString(value["description"])) &&
+    (value["originId"] === undefined || isBoundedString(value["originId"])) &&
+    isFiniteNumber(value["updatedAt"])
   );
 }
 
 function validProfile(value: unknown): value is PublicProfile {
-  if (!isRecord(value)) return false;
+  if (!isRecord(value) || !hasOnlyKeys(value, ["clusters", "generatedAt", "id", "minds"])) return false;
+  const clusters = value["clusters"];
+  const minds = value["minds"];
+  if (!Array.isArray(clusters) || clusters.length > MAX_PROFILE_ITEMS || !Array.isArray(minds) || minds.length > MAX_PROFILE_ITEMS) return false;
   return (
-    typeof value["id"] === "string" &&
+    isBoundedString(value["id"]) &&
     value["id"] !== "" &&
-    Array.isArray(value["minds"]) &&
-    Array.isArray(value["clusters"]) &&
-    typeof value["generatedAt"] === "number"
+    isFiniteNumber(value["generatedAt"]) &&
+    clusters.every((cluster) =>
+      isRecord(cluster) &&
+      hasOnlyKeys(cluster, ["count", "label"]) &&
+      isFiniteNumber(cluster["count"]) &&
+      isBoundedString(cluster["label"]) &&
+      cluster["label"] !== "",
+    ) &&
+    minds.every((mind) =>
+      isRecord(mind) &&
+      hasOnlyKeys(mind, ["handle", "score"]) &&
+      isBoundedString(mind["handle"]) &&
+      isFiniteNumber(mind["score"]),
+    )
   );
 }
 
 function validBoard(value: unknown): value is PublicBoard {
-  if (!isRecord(value)) return false;
+  if (!isRecord(value) || !hasOnlyKeys(value, ["id", "kind", "rows", "updatedAt"])) return false;
   return (
-    typeof value["id"] === "string" &&
+    isBoundedString(value["id"]) &&
     value["id"] !== "" &&
-    typeof value["kind"] === "string" &&
-    isStringArray(value["rows"]) &&
-    typeof value["updatedAt"] === "number"
+    isBoundedString(value["kind"]) &&
+    value["kind"] !== "" &&
+    isStringArray(value["rows"], MAX_BOARD_ROWS) &&
+    isFiniteNumber(value["updatedAt"])
   );
 }
 
