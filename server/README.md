@@ -12,6 +12,8 @@ Build the server with `tsc -p server/tsconfig.json`. Keys come only from the env
 
 The server persists objects, owner hashes, and abuse reports to `XMEM_API_PATH` (default `./data/x-memory-api.json`). Writes use a temporary file and atomic rename; invalid or unavailable storage prevents startup. `memoryStore()` remains available for isolated tests.
 
+Browser origins are exact-match only. Set `XMEM_CORS_ORIGINS` to a comma-separated allowlist of extension or other trusted origins. Requests with an unlisted `Origin` receive 403; allowed preflight requests receive explicit methods, headers, credentials, and max-age headers. No public deployment origin is assumed.
+
 ## Routes
 
 - `GET /health`

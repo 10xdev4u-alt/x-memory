@@ -16,8 +16,8 @@ describe("security posture", () => {
     expect(manifest.content_security_policy?.extension_pages).toBe("script-src 'self'; object-src 'self'");
   });
 
-  it("requests only x.com plus storage and panel", () => {
-    expect(manifest.host_permissions).toEqual(["https://x.com/*"]);
+  it("requests only x.com, the local API, storage, and panel", () => {
+    expect(manifest.host_permissions).toEqual(["http://127.0.0.1/*", "https://x.com/*"]);
     expect(manifest.permissions).toEqual(expect.arrayContaining(["storage", "sidePanel", "alarms"]));
     expect(manifest.permissions).toHaveLength(3);
   });

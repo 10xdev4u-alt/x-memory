@@ -185,6 +185,7 @@ export function ownerHash(key: string): string {
 }
 
 export interface ApiOptions {
+  allowedOrigins?: ReadonlySet<string>;
   keys: Set<string>;
   maxBodyBytes?: number;
   rateLimitPerMinute?: number;
@@ -270,6 +271,15 @@ function send(response: ServerResponse, status: number, body: unknown): void {
   response.end(payload);
 }
 
+function setCorsHeaders(response: ServerResponse, origin: string): void {
+  response.setHeader("access-control-allow-credentials", "true");
+  response.setHeader("access-control-allow-headers", "Authorization, Content-Type");
+  response.setHeader("access-control-allow-methods", "GET, PUT, DELETE, POST, OPTIONS");
+  response.setHeader("access-control-allow-origin", origin);
+  response.setHeader("access-control-max-age", "600");
+  response.setHeader("vary", "Origin");
+}
+
 export function createApiServer(store: ApiStore, options: ApiOptions): Server {
   const maxBody = options.maxBodyBytes ?? 262144;
   const limit = options.rateLimitPerMinute ?? 60;
@@ -287,6 +297,19 @@ export function createApiServer(store: ApiStore, options: ApiOptions): Server {
   return createHttpServer((request: IncomingMessage, response: ServerResponse) => {
     void (async () => {
       const url = new URL(request.url ?? "/", "http://local");
+      const origin = request.headers.origin;
+      if (origin !== undefined) {
+        if (options.allowedOrigins === undefined || !options.allowedOrigins.has(origin)) {
+          send(response, 403, { error: "origin not allowed" });
+          return;
+        }
+        setCorsHeaders(response, origin);
+        if (request.method === "OPTIONS") {
+          response.writeHead(204);
+          response.end();
+          return;
+        }
+      }
       const now = Date.now();
       if (request.method === "GET" && url.pathname === "/health") {
         send(response, 200, { ok: true });
