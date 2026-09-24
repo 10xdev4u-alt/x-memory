@@ -1,5 +1,8 @@
-import { createApiServer, memoryStore } from "../server/src/server.js";
+import { createApiServer, durableStore, memoryStore, type ApiStore } from "../server/src/server.js";
 import type { AddressInfo } from "node:net";
+import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import type { Server } from "node:http";
 
@@ -10,10 +13,10 @@ afterEach(async () => {
   servers = [];
 });
 
-async function start(options?: { keys?: string[]; limit?: number }): Promise<string> {
+async function start(options?: { keys?: string[]; limit?: number }, providedStore?: ApiStore): Promise<string> {
   const apiOptions = { keys: new Set(options?.keys ?? ["k1"]) };
   const server = createApiServer(
-    memoryStore(),
+    providedStore ?? memoryStore(),
     options?.limit === undefined ? apiOptions : { ...apiOptions, rateLimitPerMinute: options.limit },
   );
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", () => resolve()));
@@ -102,6 +105,51 @@ describe("public api", () => {
     const owner = await fetch(`${base}/v1/collections/c9`, { headers: { authorization: "Bearer owner" }, method: "DELETE" });
     expect(owner.status).toBe(200);
     expect((await fetch(`${base}/v1/collections/c9`)).status).toBe(404);
+  });
+
+  it("persists objects, ownership, and reports across restart", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "x-memory-api-"));
+    const path = join(directory, "store.json");
+    try {
+      const firstBase = await start({ keys: ["owner"] }, await durableStore(path));
+      const json = { "content-type": "application/json" };
+      const collection = { id: "durable", name: "Durable", postIds: [], updatedAt: 1 };
+      expect((await fetch(`${firstBase}/v1/collections/durable`, {
+        body: JSON.stringify(collection),
+        headers: { ...json, authorization: "Bearer owner" },
+        method: "PUT",
+      })).status).toBe(200);
+      expect((await fetch(`${firstBase}/v1/reports`, {
+        body: JSON.stringify({ id: "durable", kind: "collections", reason: "persisted report" }),
+        headers: { ...json, authorization: "Bearer owner" },
+        method: "POST",
+      })).status).toBe(200);
+
+      const secondBase = await start({ keys: ["owner", "stranger"] }, await durableStore(path));
+      expect(await (await fetch(`${secondBase}/v1/collections/durable`)).json()).toMatchObject({ name: "Durable" });
+      expect((await fetch(`${secondBase}/v1/collections/durable`, {
+        body: JSON.stringify({ ...collection, name: "Hijacked" }),
+        headers: { ...json, authorization: "Bearer stranger" },
+        method: "PUT",
+      })).status).toBe(403);
+      expect(await (await fetch(`${secondBase}/v1/reports`, { headers: { authorization: "Bearer owner" } })).json()).toMatchObject({
+        reports: [{ reason: "persisted report" }],
+      });
+      expect((await readFile(path, "utf8")).length).toBeGreaterThan(0);
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
+  });
+
+  it("fails closed when durable storage is invalid", async () => {
+    const directory = await mkdtemp(join(tmpdir(), "x-memory-api-"));
+    const path = join(directory, "store.json");
+    try {
+      await writeFile(path, "not json", "utf8");
+      await expect(durableStore(path)).rejects.toThrow("invalid JSON");
+    } finally {
+      await rm(directory, { force: true, recursive: true });
+    }
   });
 
   it("takes abuse reports with credit", async () => {
