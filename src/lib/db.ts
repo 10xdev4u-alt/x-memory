@@ -1,3 +1,4 @@
+import { currentDbName } from "./accounts.js";
 import type { PostReferences } from "./threads.js";
 
 export type PostStatus = "active" | "deleted" | "suspended";
@@ -81,9 +82,10 @@ export interface LoopRecord {
   resolvedAt: number;
 }
 
-export function openDb(factory: IDBFactory = indexedDB, name: string = DB_NAME): Promise<IDBDatabase> {
+export async function openDb(factory: IDBFactory = indexedDB, name?: string): Promise<IDBDatabase> {
+  const resolvedName = name ?? (await currentDbName()) ?? DB_NAME;
   return new Promise((resolve, reject) => {
-    const request = factory.open(name, DB_VERSION);
+    const request = factory.open(resolvedName, DB_VERSION);
     request.onupgradeneeded = () => {
       const db = request.result;
       if (!db.objectStoreNames.contains("posts")) {

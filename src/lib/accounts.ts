@@ -35,6 +35,12 @@ export async function readCurrentAccount(): Promise<string | undefined> {
   return stored[CURRENT_KEY] as string | undefined;
 }
 
+export async function currentDbName(): Promise<string | undefined> {
+  if (typeof chrome === "undefined" || chrome.storage?.local === undefined) return undefined;
+  const accountId = await readCurrentAccount();
+  return accountId === undefined || accountId === "" ? undefined : dbNameFor(accountId);
+}
+
 export async function writeCurrentAccount(id: string): Promise<void> {
   await chrome.storage.local.set({ [CURRENT_KEY]: id });
 }
