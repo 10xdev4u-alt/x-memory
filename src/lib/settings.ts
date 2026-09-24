@@ -36,14 +36,20 @@ export async function writeVersions(snapshot: VersionSnapshot): Promise<void> {
 export async function wipeLocalData(): Promise<void> {
   const databases = await indexedDB.databases();
   await Promise.all(databases.map((info) => info.name !== undefined && deleteDatabase(info.name)));
+  const remainingDatabases = await indexedDB.databases();
+  if (remainingDatabases.length > 0) {
+    throw new Error(`local data wipe incomplete: ${remainingDatabases.map((info) => info.name ?? "unknown").join(", ")}`);
+  }
   await chrome.storage.local.clear();
+  const remainingStorage = await chrome.storage.local.get();
+  if (Object.keys(remainingStorage).length > 0) throw new Error("local storage wipe incomplete");
 }
 
 function deleteDatabase(name: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.deleteDatabase(name);
     request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
-    request.onblocked = () => resolve();
+    request.onerror = () => reject(new Error(`database deletion failed: ${name}`));
+    request.onblocked = () => reject(new Error(`database deletion blocked: ${name}`));
   });
 }
