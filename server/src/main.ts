@@ -6,8 +6,9 @@ async function start(): Promise<void> {
 
   const port = Number(process.env["PORT"] ?? "8787");
   const origins = new Set((process.env["XMEM_CORS_ORIGINS"] ?? "").split(",").filter((origin) => origin !== ""));
+  const moderatorKeys = new Set((process.env["XMEM_MODERATOR_KEYS"] ?? "").split(",").filter((key) => key !== ""));
   const store = await durableStore(process.env["XMEM_API_PATH"] ?? "./data/x-memory-api.json");
-  const server = createApiServer(store, { allowedOrigins: origins, keys });
+  const server = createApiServer(store, { allowedOrigins: origins, keys, moderatorKeys });
   server.listen(port, "127.0.0.1", () => {
     console.log(`x-memory public api on 127.0.0.1:${port}`);
   });

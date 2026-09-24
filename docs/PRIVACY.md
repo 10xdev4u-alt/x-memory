@@ -28,7 +28,7 @@ These calls go to X servers as your account. X sees them the way it sees your no
 
 - Portable share links carry only the collection data you chose to share, peer to peer.
 - Publishing to the hosted API sends only the object you publish, under the visibility you set. Private is the default. The extension requests only the local API host by default; any browser origin allowlist is deployment configuration.
-- Abuse reports carry the reported object id, a reason, and a hashed reporter key. Raw keys never persist server side.
+- Abuse reports carry the reported object id, a reason, and a hashed reporter key. Raw keys never persist server side; only keys in the configured moderator scope can read reports.
 
 ## Deletion
 

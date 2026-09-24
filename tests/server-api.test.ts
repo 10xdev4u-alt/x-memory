@@ -13,10 +13,11 @@ afterEach(async () => {
   servers = [];
 });
 
-async function start(options?: { keys?: string[]; limit?: number; origins?: string[] }, providedStore?: ApiStore): Promise<string> {
+async function start(options?: { keys?: string[]; limit?: number; moderators?: string[]; origins?: string[] }, providedStore?: ApiStore): Promise<string> {
   const apiOptions = {
     allowedOrigins: new Set(options?.origins ?? []),
     keys: new Set(options?.keys ?? ["k1"]),
+    moderatorKeys: new Set(options?.moderators ?? []),
   };
   const server = createApiServer(
     providedStore ?? memoryStore(),
@@ -172,14 +173,14 @@ describe("public api", () => {
         method: "POST",
       })).status).toBe(200);
 
-      const secondBase = await start({ keys: ["owner", "stranger"] }, await durableStore(path));
+      const secondBase = await start({ keys: ["owner", "stranger", "moderator"], moderators: ["moderator"] }, await durableStore(path));
       expect(await (await fetch(`${secondBase}/v1/collections/durable`)).json()).toMatchObject({ name: "Durable" });
       expect((await fetch(`${secondBase}/v1/collections/durable`, {
         body: JSON.stringify({ ...collection, name: "Hijacked" }),
         headers: { ...json, authorization: "Bearer stranger" },
         method: "PUT",
       })).status).toBe(403);
-      expect(await (await fetch(`${secondBase}/v1/reports`, { headers: { authorization: "Bearer owner" } })).json()).toMatchObject({
+      expect(await (await fetch(`${secondBase}/v1/reports`, { headers: { authorization: "Bearer moderator" } })).json()).toMatchObject({
         reports: [{ reason: "persisted report" }],
       });
       expect((await readFile(path, "utf8")).length).toBeGreaterThan(0);
@@ -199,8 +200,8 @@ describe("public api", () => {
     }
   });
 
-  it("takes abuse reports with credit", async () => {
-    const base = await start();
+  it("takes abuse reports with credit and limits reads to moderators", async () => {
+    const base = await start({ keys: ["publisher", "moderator"], moderators: ["moderator"] });
     const json = { "content-type": "application/json" };
     const anon = await fetch(`${base}/v1/reports`, {
       body: JSON.stringify({ id: "c1", kind: "collections", reason: "spam" }),
@@ -210,17 +211,20 @@ describe("public api", () => {
     expect(anon.status).toBe(401);
     const bad = await fetch(`${base}/v1/reports`, {
       body: JSON.stringify({ id: "c1", kind: "nope", reason: "x" }),
-      headers: { ...json, authorization: "Bearer k1" },
+      headers: { ...json, authorization: "Bearer publisher" },
       method: "POST",
     });
     expect(bad.status).toBe(400);
     const good = await fetch(`${base}/v1/reports`, {
       body: JSON.stringify({ id: "c1", kind: "collections", reason: "spam account" }),
-      headers: { ...json, authorization: "Bearer k1" },
+      headers: { ...json, authorization: "Bearer publisher" },
       method: "POST",
     });
     expect(good.status).toBe(200);
-    const list = await fetch(`${base}/v1/reports`, { headers: { authorization: "Bearer k1" } });
+    const publisherRead = await fetch(`${base}/v1/reports`, { headers: { authorization: "Bearer publisher" } });
+    expect(publisherRead.status).toBe(403);
+    const list = await fetch(`${base}/v1/reports`, { headers: { authorization: "Bearer moderator" } });
+    expect(list.status).toBe(200);
     const body = (await list.json()) as { reports: Array<{ reason: string }> };
     expect(body.reports.map((report) => report.reason)).toEqual(["spam account"]);
   });
