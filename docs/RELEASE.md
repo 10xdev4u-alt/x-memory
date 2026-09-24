@@ -10,9 +10,10 @@
 ## Cut a release
 
 1. Bump versions together. The release test fails the build on drift.
-2. Run typecheck, tests, build, then package: `npm run package`.
-3. Tag `vX.Y.Z` after the release PR merges. Tags never move.
-4. Upload the zip from `release/` to the store tracks in channel order.
+2. Run `npm run verify`; it builds, smoke-tests, packages, and writes `release/SHA256SUMS`.
+3. Inspect `provenance.json` inside the zip for the version, source SHA, build time, Node, and npm.
+4. Tag `vX.Y.Z` after the release PR merges. Tags never move.
+5. Upload the zip and `release/SHA256SUMS` together to the store tracks in channel order.
 
 ## Rollback
 
