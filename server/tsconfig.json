@@ -1,1 +1,1 @@
-{"extends": "../tsconfig.json", "compilerOptions": {"lib": ["ES2023"], "outDir": "../dist-server", "rootDir": ".", "types": ["node"]}, "include": ["."]}
+{"extends": "../tsconfig.json", "compilerOptions": {"lib": ["ES2023"], "outDir": "../dist-server", "rootDir": "src", "types": ["node"]}, "include": ["src"]}
