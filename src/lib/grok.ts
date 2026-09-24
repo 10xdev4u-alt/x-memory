@@ -38,6 +38,10 @@ export interface ConversationDeps {
   fetchImpl?: typeof fetch;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 export async function ensureConversation(deps: ConversationDeps = {}): Promise<string> {
   const loaded = await loadOps([GROK_CREATE_OPERATION]);
   if (loaded.length === 0) throw new GrokError("blocked", 0, "grok operations unknown, open x.com to heal");
@@ -46,13 +50,13 @@ export async function ensureConversation(deps: ConversationDeps = {}): Promise<s
   const cookie = deps.cookie ?? (typeof document !== "undefined" ? document.cookie : "");
   const client: { bearer: string; cookie: string; fetchImpl?: typeof fetch } = { bearer, cookie };
   if (deps.fetchImpl !== undefined) client.fetchImpl = deps.fetchImpl;
-  const envelope = await callOperation<{ create_grok_conversation?: { conversation_id?: string } }>(
-    GROK_CREATE_OPERATION,
-    {},
-    client,
-  );
-  const id = envelope.data?.create_grok_conversation?.conversation_id;
-  if (id === undefined) throw new GrokError("server", 0, "conversation create returned no id");
+  const envelope = await callOperation(GROK_CREATE_OPERATION, {}, client);
+  const data = isRecord(envelope.data) ? envelope.data : undefined;
+  const conversation = data !== undefined && isRecord(data.create_grok_conversation) ? data.create_grok_conversation : undefined;
+  const id = conversation?.conversation_id;
+  if (typeof id !== "string" || id.trim() === "") {
+    throw new GrokError("server", 0, "conversation create returned no id");
+  }
   return id;
 }
 
@@ -124,20 +128,24 @@ export async function* sendGrokMessage(
   yield { fullText, type: "done" };
 }
 
-function extractText(chunk: string): string {
+export function extractText(chunk: string): string {
   const texts: string[] = [];
   for (const line of chunk.split("\n")) {
     const trimmed = line.trim();
     if (trimmed === "" || trimmed.startsWith(":")) continue;
     const payload = trimmed.startsWith("data:") ? trimmed.slice(5).trim() : trimmed;
     if (payload === "[DONE]") continue;
+    let parsed: unknown;
     try {
-      const parsed = JSON.parse(payload) as { text?: unknown; delta?: unknown; content?: unknown };
-      for (const field of [parsed.text, parsed.delta, parsed.content]) {
-        if (typeof field === "string") texts.push(field);
-      }
+      parsed = JSON.parse(payload);
     } catch {
-      texts.push(payload);
+      continue;
+    }
+    if (!isRecord(parsed) || Object.keys(parsed).some((key) => !["text", "delta", "content"].includes(key))) continue;
+    const fields = [parsed.text, parsed.delta, parsed.content];
+    if (!fields.some((field) => typeof field === "string")) continue;
+    for (const field of fields) {
+      if (typeof field === "string") texts.push(field);
     }
   }
   return texts.join("");

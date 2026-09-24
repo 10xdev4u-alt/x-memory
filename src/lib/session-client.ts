@@ -21,9 +21,42 @@ export class SessionError extends Error {
   }
 }
 
-export interface GraphQLEnvelope<T = unknown> {
-  data?: T;
+export interface GraphQLEnvelope {
+  data?: unknown;
   errors?: Array<{ message?: string; code?: number }>;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function parseGraphQLEnvelope(value: unknown): GraphQLEnvelope {
+  if (!isRecord(value) || Object.keys(value).some((key) => key !== "data" && key !== "errors")) {
+    throw new SessionError("server", 0, "invalid GraphQL response");
+  }
+  const rawErrors = value.errors;
+  if (rawErrors !== undefined && !Array.isArray(rawErrors)) {
+    throw new SessionError("server", 0, "invalid GraphQL errors");
+  }
+  const errors = (rawErrors ?? []).map((error) => {
+    if (!isRecord(error) || Object.keys(error).some((key) => key !== "message" && key !== "code")) {
+      throw new SessionError("server", 0, "invalid GraphQL error");
+    }
+    if (error.message !== undefined && typeof error.message !== "string") {
+      throw new SessionError("server", 0, "invalid GraphQL error message");
+    }
+    if (error.code !== undefined && typeof error.code !== "number") {
+      throw new SessionError("server", 0, "invalid GraphQL error code");
+    }
+    return {
+      ...(typeof error.message === "string" ? { message: error.message } : {}),
+      ...(typeof error.code === "number" ? { code: error.code } : {}),
+    };
+  });
+  return {
+    ...(value.data === undefined ? {} : { data: value.data }),
+    ...(errors.length > 0 ? { errors } : {}),
+  };
 }
 
 export function readCsrfToken(cookie: string): string {
@@ -64,11 +97,11 @@ export interface SessionClientDeps {
   fetchImpl?: typeof fetch;
 }
 
-export async function callOperation<T>(
+export async function callOperation(
   operationName: string,
   variables: unknown,
   deps: SessionClientDeps,
-): Promise<GraphQLEnvelope<T>> {
+): Promise<GraphQLEnvelope> {
   const descriptor = resolveOperation(operationName);
   if (descriptor === undefined) {
     throw new SessionError("stale-operation", 0, `unknown operation: ${operationName}`);
@@ -93,5 +126,5 @@ export async function callOperation<T>(
       `${operationName} failed with status ${response.status}`,
     );
   }
-  return (await response.json()) as GraphQLEnvelope<T>;
+  return parseGraphQLEnvelope(await response.json());
 }
