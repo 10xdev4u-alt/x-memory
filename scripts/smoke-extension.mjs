@@ -51,14 +51,16 @@ const browser = spawn(executable, [
 let browserOutput = "";
 const browserEndpoint = await new Promise((resolveEndpoint, rejectEndpoint) => {
   const timeout = setTimeout(() => rejectEndpoint(new Error("Chromium DevTools endpoint did not start within 10 seconds")), 10000);
-  browser.stderr.on("data", (chunk) => {
+  const captureBrowserOutput = (chunk) => {
     browserOutput += chunk.toString();
     const match = browserOutput.match(/DevTools listening on (ws:\/\/[^\s]+)/);
     if (match) {
       clearTimeout(timeout);
       resolveEndpoint(match[1]);
     }
-  });
+  };
+  browser.stderr.on("data", captureBrowserOutput);
+  browser.stdout.on("data", captureBrowserOutput);
   browser.once("error", (error) => {
     clearTimeout(timeout);
     rejectEndpoint(error);
