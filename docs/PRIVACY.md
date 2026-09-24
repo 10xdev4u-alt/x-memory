@@ -27,7 +27,7 @@ These calls go to X servers as your account. X sees them the way it sees your no
 ## Shared and hosted objects
 
 - Portable share links carry only the collection data you chose to share, peer to peer.
-- Publishing to the hosted API sends only the object you publish, under the visibility you set. Private is the default. The extension requests only the local API host by default; any browser origin allowlist is deployment configuration.
+- Publishing to the hosted API sends only the object you publish, under the visibility you set. Private is the default and is checked again immediately before publishing. The extension requests only the local API host by default; any browser origin allowlist is deployment configuration.
 - Abuse reports carry the reported object id, a reason, and a hashed reporter key. Raw keys never persist server side; only keys in the configured moderator scope can read reports. Reports are retained for 90 days and capped at 1,000 entries.
 
 ## Deletion
