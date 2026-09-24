@@ -10,6 +10,10 @@ Measured with `node scripts/bench.mjs` on synthetic corpora. Numbers move with h
 | 5,000 posts | 88ms | 201ms | 825ms | 5ms |
 | 20,000 posts | 354ms | 726ms | 11s | 8ms |
 
+## Benchmark gate
+
+`npm run verify` runs the benchmark after the extension build. The gate covers 1,000, 5,000, and 20,000 synthetic posts and fails when index build, 50-search, taxonomy, or topic extraction exceeds its documented limit. Run it directly with `npm run build && npm run bench`.
+
 Search stays interactive past 20k posts. Index builds are one-time per session.
 
 ## Design rules that keep it fast

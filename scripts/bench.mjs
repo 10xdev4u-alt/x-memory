@@ -3,6 +3,11 @@ import { SearchIndex } from "../dist/src/lib/search.js";
 import { extractTopics } from "../dist/src/lib/entities.js";
 
 const WORDS = "kernel attention eval harness thread model training inference benchmark grok deepseek scaling agent".split(" ");
+const CASES = [
+  { index: 1_000, search: 1_000, taxonomy: 2_000 },
+  { index: 5_000, search: 5_000, taxonomy: 10_000 },
+  { index: 20_000, search: 15_000, taxonomy: 45_000 },
+];
 
 function* seededRandom(seed) {
   let state = seed;
@@ -26,25 +31,25 @@ function makePosts(count, seed = 42) {
   return posts;
 }
 
-function measure(label, fn) {
+function measure(label, fn, limitMs) {
   const start = performance.now();
   const result = fn();
   const ms = performance.now() - start;
-  console.log(`${label}: ${ms.toFixed(0)}ms`);
+  console.log(`${label}: ${ms.toFixed(0)}ms (limit ${limitMs}ms)`);
+  if (ms > limitMs) throw new Error(`${label} exceeded ${limitMs}ms at ${ms.toFixed(0)}ms`);
   return result;
 }
 
-const sizes = [1000, 5000, 20000];
-for (const n of sizes) {
-  console.log(`--- ${n} posts ---`);
-  const posts = makePosts(n);
+for (const testCase of CASES) {
+  console.log(`--- ${testCase.index} posts ---`);
+  const posts = makePosts(testCase.index);
   const index = new SearchIndex();
-  measure("index build", () => index.add(posts.map((p) => ({ ...p, authorName: "", createdAt: 1 }))));
+  measure("index build", () => index.add(posts.map((p) => ({ ...p, authorName: "", createdAt: 1 }))), testCase.index);
   measure("search x50", () => {
     for (let i = 0; i < 50; i += 1) index.search("kernel attention");
-  });
-  measure("taxonomy", () => clusterPosts(posts));
+  }, testCase.search);
+  measure("taxonomy", () => clusterPosts(posts), testCase.taxonomy);
   measure("topics x1000", () => {
     for (let i = 0; i < 1000; i += 1) extractTopics(posts[i % posts.length].text);
-  });
+  }, 2_000);
 }
