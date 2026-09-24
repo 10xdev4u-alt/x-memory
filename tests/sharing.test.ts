@@ -28,8 +28,8 @@ afterEach(async () => {
 });
 
 const POSTS = [
-  { authorHandle: "h", authorName: "N", createdAt: 1, id: "p1", text: "hello world, kernels", url: "u1" },
-  { authorHandle: "e", authorName: "E", createdAt: 2, id: "p2", text: "eval harnesses win", url: "u2" },
+  { authorHandle: "h", authorName: "N", createdAt: 1, id: "p1", text: "hello world, kernels", url: "https://x.com/i/status/1" },
+  { authorHandle: "e", authorName: "E", createdAt: 2, id: "p2", text: "eval harnesses win", url: "https://x.com/i/status/2" },
 ];
 
 describe("sharing", () => {
@@ -53,6 +53,17 @@ describe("sharing", () => {
     expect(() => parseSharedLink(shareLink({ briefs: {}, id: "x", name: "n", posts: "nope", v: 1 } as never))).toThrow(
       /unsupported/,
     );
+    const valid = { briefs: {}, id: "x", name: "n", posts: [POSTS[0]], v: 1 };
+    const invalidPackages = [
+      { ...valid, posts: [{ ...POSTS[0], url: "http://x.com/i/status/1" }] },
+      { ...valid, posts: [{ ...POSTS[0], extra: true }] },
+      { ...valid, briefs: { missing: "orphan" } },
+      { ...valid, briefs: { p1: 1 } },
+      { ...valid, posts: [POSTS[0], { ...POSTS[0] }] }
+    ];
+    for (const pkg of invalidPackages) {
+      expect(() => parseSharedLink(shareLink(pkg as never))).toThrow(/unsupported/);
+    }
   });
 
   it("gates oversized packages from inline links", () => {
@@ -60,6 +71,15 @@ describe("sharing", () => {
     expect(canShareInline(big)).toBe(false);
     const small = packageCollection("c", "N", undefined, [POSTS[0] as (typeof POSTS)[number]], {});
     expect(canShareInline(small)).toBe(true);
+  });
+
+  it("rejects malformed packages before database writes", async () => {
+    const invalid = { briefs: {}, id: "x", name: "n", posts: [{ ...POSTS[0], url: "javascript:alert(1)" }], v: 1 };
+    await expect(importSharedPackage(invalid as never, { dbFactory: indexedDB })).rejects.toThrow(/unsupported/);
+    const db = await openDb(indexedDB);
+    expect(await countRecords(db, "posts")).toBe(0);
+    expect(await countRecords(db, "briefs")).toBe(0);
+    db.close();
   });
 
   it("imports packages with posts, briefs, and lineage", async () => {
