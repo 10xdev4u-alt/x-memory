@@ -90,6 +90,7 @@ function isPersistedState(value: unknown): value is PersistedState {
     isStoredEntries(value["boards"], validBoard) &&
     isStoredEntries(value["owners"], (entry) => typeof entry === "string") &&
     Array.isArray(value["reports"]) &&
+    value["reports"].length <= REPORT_MAX_COUNT &&
     value["reports"].every(isStoredReport)
   );
 }
@@ -422,7 +423,8 @@ export function createApiServer(store: ApiStore, options: ApiOptions): Server {
           send(response, 400, { error: "invalid cursor" });
           return;
         }
-        const ordered = [...store.reports]
+        const ordered = store.reports
+          .filter((report) => now - report.at <= REPORT_RETENTION_MS)
           .filter((report) => before === undefined || report.at < before)
           .sort((a, b) => b.at - a.at);
         const reports = ordered.slice(0, limit);
