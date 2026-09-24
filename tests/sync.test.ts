@@ -1,6 +1,6 @@
 import { clearProgress, PROGRESS_SCHEMA_VERSION, readProgress } from "../src/lib/sync-progress.js";
 import { getRecord } from "../src/lib/db.js";
-import { storedPostCount, syncBookmarks, syncLikes } from "../src/lib/sync.js";
+import { mergeProvenance, storedPostCount, syncBookmarks, syncLikes } from "../src/lib/sync.js";
 import { ThrottleQueue } from "../src/lib/queue.js";
 import type { TimelineEntry, TimelinePage } from "../src/lib/timeline.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -124,6 +124,26 @@ describe("likes sync", () => {
     expect(seenVars[1]).toMatchObject({ cursor: "lc1", userId: "u9" });
     const db = await (await import("../src/lib/db.js")).openDb(indexedDB);
     expect(await getRecord(db, "posts", "l1")).toMatchObject({ provenance: "liked" });
+    db.close();
+  });
+
+  it("merges saved then liked provenance", async () => {
+    expect(mergeProvenance("saved", "liked")).toBe("both");
+    const queue = new ThrottleQueue({ baseDelayMs: 1, maxAttempts: 1, minIntervalMs: 0, sleep: async () => undefined });
+    await syncBookmarks({ dbFactory: indexedDB, queue, transport: { fetchPage: async () => ({ data: page(["both-1"]) }) } });
+    await syncLikes({ dbFactory: indexedDB, queue, transport: { fetchPage: async () => ({ data: likesPage(["both-1"]) }) }, userId: "u9" });
+    const db = await (await import("../src/lib/db.js")).openDb(indexedDB);
+    expect(await getRecord(db, "posts", "both-1")).toMatchObject({ provenance: "both" });
+    db.close();
+  });
+
+  it("merges liked then saved provenance", async () => {
+    expect(mergeProvenance("liked", "saved")).toBe("both");
+    const queue = new ThrottleQueue({ baseDelayMs: 1, maxAttempts: 1, minIntervalMs: 0, sleep: async () => undefined });
+    await syncLikes({ dbFactory: indexedDB, queue, transport: { fetchPage: async () => ({ data: likesPage(["both-2"]) }) }, userId: "u9" });
+    await syncBookmarks({ dbFactory: indexedDB, queue, transport: { fetchPage: async () => ({ data: page(["both-2"]) }) } });
+    const db = await (await import("../src/lib/db.js")).openDb(indexedDB);
+    expect(await getRecord(db, "posts", "both-2")).toMatchObject({ provenance: "both" });
     db.close();
   });
 });

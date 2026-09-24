@@ -1,6 +1,6 @@
 import { readCurrentAccount } from "./accounts.js";
-import { countRecords, openDb, putRecords } from "./db.js";
-import type { Provenance } from "./db.js";
+import { countRecords, getRecord, openDb, putRecords } from "./db.js";
+import type { PostRecord, Provenance } from "./db.js";
 import { upsertAuthors } from "./authors.js";
 import { extractMedia } from "./entities.js";
 import { clearProgress, PROGRESS_SCHEMA_VERSION, readProgress, type SyncProgress, type SyncProgressIdentity, writeProgress } from "./sync-progress.js";
@@ -73,6 +73,11 @@ export interface SyncResult {
   stored: number;
 }
 
+export function mergeProvenance(existing: Provenance | undefined, incoming: Provenance): Provenance {
+  if (existing === undefined || existing === incoming) return incoming;
+  return "both";
+}
+
 const DEFAULT_PAGE_SIZE = 20;
 const DEFAULT_MAX_PAGES = 50;
 
@@ -102,16 +107,17 @@ export async function syncTimeline(deps: SyncEngineDeps): Promise<SyncResult> {
     if (page === undefined) break;
     const parsed = parseTimelinePage(page);
     if (parsed.posts.length > 0) {
+      const existing = await Promise.all(parsed.posts.map((post) => getRecord<PostRecord>(db, "posts", post.id)));
       await putRecords(
         db,
         "posts",
-        parsed.posts.map((post) => ({
+        parsed.posts.map((post, index) => ({
           authorHandle: post.authorHandle,
           authorId: post.authorId,
           authorName: post.authorName,
           createdAt: post.createdAt,
           id: post.id,
-          provenance: deps.target.provenance,
+          provenance: mergeProvenance(existing[index]?.provenance, deps.target.provenance),
           references: post.references,
           status: "active" as const,
           syncedAt: Date.now(),
