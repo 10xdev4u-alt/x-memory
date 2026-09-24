@@ -34,6 +34,7 @@ if (!existsSync(join(extensionPath, "manifest.json"))) {
 }
 
 const userDataDir = mkdtempSync(join(tmpdir(), "x-memory-chromium-"));
+const devtoolsPort = 19222;
 const browser = spawn(executable, [
   "--headless=new",
   "--no-sandbox",
@@ -43,33 +44,36 @@ const browser = spawn(executable, [
   "--no-default-browser-check",
   "--disable-extensions-except=" + extensionPath,
   "--load-extension=" + extensionPath,
-  "--remote-debugging-port=0",
+  "--remote-debugging-port=" + devtoolsPort,
   "--user-data-dir=" + userDataDir,
   "about:blank"
 ], { stdio: ["ignore", "pipe", "pipe"] });
 
-let browserOutput = "";
-const browserEndpoint = await new Promise((resolveEndpoint, rejectEndpoint) => {
-  const timeout = setTimeout(() => rejectEndpoint(new Error("Chromium DevTools endpoint did not start within 10 seconds")), 10000);
-  const captureBrowserOutput = (chunk) => {
-    browserOutput += chunk.toString();
-    const match = browserOutput.match(/DevTools listening on (ws:\/\/[^\s]+)/);
-    if (match) {
-      clearTimeout(timeout);
-      resolveEndpoint(match[1]);
-    }
-  };
-  browser.stderr.on("data", captureBrowserOutput);
-  browser.stdout.on("data", captureBrowserOutput);
-  browser.once("error", (error) => {
-    clearTimeout(timeout);
-    rejectEndpoint(error);
-  });
-  browser.once("exit", (code, signal) => {
-    clearTimeout(timeout);
-    rejectEndpoint(new Error(`Chromium exited before DevTools started: code=${code} signal=${signal}`));
-  });
+let browserError;
+browser.once("error", (error) => {
+  browserError = error;
 });
+const browserEndpoint = await (async () => {
+  const deadline = Date.now() + 10000;
+  while (Date.now() < deadline) {
+    if (browserError) throw browserError;
+    if (browser.exitCode !== null) {
+      throw new Error(`Chromium exited before DevTools started with code ${browser.exitCode}`);
+    }
+    try {
+      const response = await fetch(`http://127.0.0.1:${devtoolsPort}/json/version`);
+      if (response.ok) {
+        const body = await response.json();
+        if (typeof body.webSocketDebuggerUrl === "string") {
+          return body.webSocketDebuggerUrl;
+        }
+      }
+    } catch {
+      await new Promise((resolveWait) => setTimeout(resolveWait, 100));
+    }
+  }
+  throw new Error("Chromium DevTools endpoint did not start within 10 seconds");
+})();
 
 const extensionId = [...createHash("sha256").update(extensionPath).digest("hex").slice(0, 32)]
   .map((nibble) => "abcdefghijklmnop"[Number.parseInt(nibble, 16)])
