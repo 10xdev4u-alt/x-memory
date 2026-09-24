@@ -1,4 +1,4 @@
-import { clearProgress, readProgress } from "../src/lib/sync-progress.js";
+import { clearProgress, PROGRESS_SCHEMA_VERSION, readProgress } from "../src/lib/sync-progress.js";
 import { getRecord } from "../src/lib/db.js";
 import { storedPostCount, syncBookmarks, syncLikes } from "../src/lib/sync.js";
 import { ThrottleQueue } from "../src/lib/queue.js";
@@ -45,7 +45,10 @@ function page(ids: string[], cursor?: string): { bookmark_timeline_v2: { timelin
   return { bookmark_timeline_v2: { timeline: { instructions: [{ entries, type: "TimelineAddEntries" }] } } };
 }
 
-beforeEach(() => store.clear());
+beforeEach(() => {
+  store.clear();
+  store.set("xmem.account.current", "account-a");
+});
 
 afterEach(async () => {
   const dbs = await indexedDB.databases();
@@ -67,7 +70,7 @@ describe("sync engine", () => {
     expect(result).toEqual({ pages: 2, stored: 3 });
     expect(seen).toEqual([undefined, "c1"]);
     expect(await storedPostCount({ dbFactory: indexedDB })).toBe(3);
-    expect(await readProgress()).toBeUndefined();
+    expect(await readProgress({ accountId: "account-a", operation: "Bookmarks", schemaVersion: PROGRESS_SCHEMA_VERSION })).toBeUndefined();
   });
 
   it("resumes from stored progress", async () => {
@@ -79,12 +82,12 @@ describe("sync engine", () => {
     };
     const queue = new ThrottleQueue({ baseDelayMs: 1, maxAttempts: 1, minIntervalMs: 0, sleep: async () => undefined });
     const { writeProgress } = await import("../src/lib/sync-progress.js");
-    await writeProgress({ completed: 10, cursor: "c9", startedAt: 1, updatedAt: 1 });
+    await writeProgress({ accountId: "account-a", completed: 10, cursor: "c9", operation: "Bookmarks", schemaVersion: PROGRESS_SCHEMA_VERSION, startedAt: 1, updatedAt: Date.now() });
     const progress: number[] = [];
     const result = await syncBookmarks({ dbFactory: indexedDB, onProgress: (n) => progress.push(n), queue, transport });
     expect(result).toEqual({ pages: 1, stored: 1 });
     expect(progress).toEqual([11]);
-    await clearProgress();
+    await clearProgress({ accountId: "account-a", operation: "Bookmarks", schemaVersion: PROGRESS_SCHEMA_VERSION });
   });
 
   it("stops at the page cap", async () => {

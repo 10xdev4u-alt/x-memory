@@ -1,8 +1,9 @@
+import { readCurrentAccount } from "./accounts.js";
 import { countRecords, openDb, putRecords } from "./db.js";
 import type { Provenance } from "./db.js";
 import { upsertAuthors } from "./authors.js";
 import { extractMedia } from "./entities.js";
-import { clearProgress, readProgress, type SyncProgress, writeProgress } from "./sync-progress.js";
+import { clearProgress, PROGRESS_SCHEMA_VERSION, readProgress, type SyncProgress, type SyncProgressIdentity, writeProgress } from "./sync-progress.js";
 import { parseTimelinePage, type TimelinePage } from "./timeline.js";
 import { ThrottleQueue } from "./queue.js";
 
@@ -55,6 +56,7 @@ export function likesTarget(userId: string): SyncTarget {
 }
 
 export interface SyncEngineDeps {
+  accountId?: string;
   dbFactory?: IDBFactory;
   dbName?: string;
   extraVariables?: Record<string, unknown>;
@@ -80,7 +82,13 @@ export async function syncTimeline(deps: SyncEngineDeps): Promise<SyncResult> {
   const pageSize = deps.pageSize ?? DEFAULT_PAGE_SIZE;
   const maxPages = deps.maxPages ?? DEFAULT_MAX_PAGES;
   const extra = deps.extraVariables ?? {};
-  const prior = await readProgress();
+  const accountId = deps.accountId ?? (await readCurrentAccount()) ?? "unknown";
+  const progressIdentity: SyncProgressIdentity = {
+    accountId,
+    operation: deps.target.operation,
+    schemaVersion: PROGRESS_SCHEMA_VERSION
+  };
+  const prior = await readProgress(progressIdentity);
   let cursor = prior?.cursor;
   let completed = prior?.completed ?? 0;
   let stored = 0;
@@ -128,7 +136,10 @@ export async function syncTimeline(deps: SyncEngineDeps): Promise<SyncResult> {
     completed += parsed.posts.length;
     pages += 1;
     const progress: SyncProgress = {
+      accountId,
       completed,
+      operation: deps.target.operation,
+      schemaVersion: PROGRESS_SCHEMA_VERSION,
       startedAt,
       updatedAt: Date.now(),
     };
@@ -138,7 +149,7 @@ export async function syncTimeline(deps: SyncEngineDeps): Promise<SyncResult> {
     if (parsed.cursor === undefined) break;
     cursor = parsed.cursor;
   }
-  await clearProgress();
+  await clearProgress(progressIdentity);
   db.close();
   return { pages, stored };
 }
