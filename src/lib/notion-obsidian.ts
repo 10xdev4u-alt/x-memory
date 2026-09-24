@@ -6,7 +6,21 @@ function isoDate(createdAt: number): string {
 }
 
 function csvCell(value: string): string {
-  return `"${value.replace(/"/g, '""')}"`;
+  const formulaPrefix = /^[\t\r ]*[=+\-@＝＋－＠]/u;
+  const safeValue = formulaPrefix.test(value) || /^[\t\r]/u.test(value) ? `'${value}` : value;
+  return `"${safeValue.replace(/"/g, '""')}"`;
+}
+
+function frontmatterValue(value: string): string {
+  return JSON.stringify(value);
+}
+
+function markdownLinkDestination(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
+}
+
+function wikiTarget(value: string): string {
+  return value.replace(/\\/g, "\\\\").replace(/\|/g, "\\|").replace(/\]/g, "\\]");
 }
 
 export function postsToNotionCsv(posts: PostRecord[], briefsById: Map<string, string>): string {
@@ -36,11 +50,11 @@ export function postsToObsidian(
     const author = post.authorHandle !== "" ? `@${post.authorHandle}` : post.authorId;
     const lines = [
       "---",
-      `id: ${post.id}`,
-      `author: "${author}"`,
-      `url: ${post.url}`,
-      `date: ${isoDate(post.createdAt)}`,
-      `provenance: ${post.provenance}`,
+      `id: ${frontmatterValue(post.id)}`,
+      `author: ${frontmatterValue(author)}`,
+      `url: ${frontmatterValue(post.url)}`,
+      `date: ${frontmatterValue(isoDate(post.createdAt))}`,
+      `provenance: ${frontmatterValue(post.provenance)}`,
       "---",
       "",
       `# ${author} on ${isoDate(post.createdAt)}`,
@@ -51,11 +65,11 @@ export function postsToObsidian(
     const brief = briefsById.get(post.id);
     if (brief !== undefined) lines.push(`> ${brief}`, "");
     for (const item of mediaByPostId.get(post.id) ?? []) {
-      lines.push(`- [${item.kind}](${item.url})`);
+      lines.push(`- [${item.kind}](${markdownLinkDestination(item.url)})`);
     }
     lines.push("", `[[x-memory-index]]`);
     return lines.join("\n");
   });
-  const index = `# x-memory index\n\n${posts.map((post) => `- [[${post.id}]] ${post.text.replace(/\s+/g, " ").trim().slice(0, 80)}`).join("\n")}\n`;
+  const index = `# x-memory index\n\n${posts.map((post) => `- [[${wikiTarget(post.id)}]] ${post.text.replace(/\s+/g, " ").trim().slice(0, 80)}`).join("\n")}\n`;
   return `${index}\n---\n\n${notes.join("\n\n---\n\n")}\n`;
 }
