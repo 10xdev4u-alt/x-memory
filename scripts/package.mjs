@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { packageName } from "../dist/src/lib/release.js";
 
 function main() {
@@ -12,6 +12,7 @@ function main() {
   }
   mkdirSync("release", { recursive: true });
   const out = `release/${packageName(version, channel)}`;
+  rmSync(out, { force: true });
   execFileSync("zip", ["-qr", `../${out}`, "."], { cwd: "dist", stdio: "inherit" });
   console.log(`packaged ${out}`);
 }
