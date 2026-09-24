@@ -15,6 +15,10 @@
 4. Tag `vX.Y.Z` after the release PR merges. Tags never move.
 5. Upload the zip and `release/SHA256SUMS` together to the store tracks in channel order.
 
+## Evidence gate
+
+Before any publication, follow `docs/RELEASE-CHECKLIST.md` from a clean checkout. Run `npm run verify`, then `npm run release:evidence`; inspect the generated `release/evidence.md` and attach the JSON record to the release PR. The evidence command is a dry run only. Any open blocker in the checklist prevents a full release.
+
 ## Rollback
 
 1. Halt the staged rollout in the store console first.
