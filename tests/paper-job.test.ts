@@ -58,7 +58,17 @@ describe("paper-job", () => {
       post("k2", "t", "Attention kernel benchmarks continue #kernels", T0),
     ]);
     await putRecords(db, "predictions", [
-      { checkedAt: T0, evidence: "shipped", id: "p1", postId: "k1", status: "resolved-true", text: "Grok ships" },
+      {
+        checkedAt: T0,
+        evidence: "shipped",
+        evidenceAt: T0,
+        evidenceSource: "https://example.com/source",
+        evidenceVerified: false,
+        id: "p1",
+        postId: "k1",
+        status: "resolved-true",
+        text: "Grok ships",
+      },
     ]);
     await putRecords(db, "review", [{ dueAt: T0 - 1, intervalDays: 1, postId: "k1" }]);
     db.close();
@@ -70,6 +80,12 @@ describe("paper-job", () => {
       since: T0 - 100,
     });
     expect(input.resolutions).toHaveLength(1);
+    expect(input.resolutions[0]).toMatchObject({
+      evidence: "shipped",
+      evidenceAt: T0,
+      evidenceSource: "https://example.com/source",
+      evidenceVerified: false,
+    });
     expect(input.missed.map((item) => item.text)).toContain("DeepSeek kernel tricks for fast attention #kernels".slice(0, 200));
     expect(input.clashes).toHaveLength(1);
     expect(input.reviewsDue).toBe(1);

@@ -1,5 +1,8 @@
 export interface PaperResolution {
   evidence: string;
+  evidenceAt: number;
+  evidenceSource: string;
+  evidenceVerified: boolean;
   outcome: string;
   text: string;
 }
@@ -38,7 +41,12 @@ export function buildMorningPaper(input: PaperInput, now: number): MorningPaper 
   if (input.resolutions.length > 0) {
     sections.push({
       heading: "Resolved overnight",
-      lines: input.resolutions.map((item) => `${item.outcome}: ${item.text} (${item.evidence})`),
+      lines: input.resolutions.map((item) => {
+        const source = item.evidenceSource === "" ? "no source" : item.evidenceSource;
+        const observed = Number.isFinite(item.evidenceAt) ? new Date(item.evidenceAt).toISOString() : "unknown time";
+        const label = item.evidenceVerified ? "verified evidence" : "model output (unverified)";
+        return `${item.outcome}: ${item.text} — ${label}; source: ${source}; observed: ${observed}; evidence: ${item.evidence}`;
+      }),
     });
   }
   if (input.missed.length > 0) {

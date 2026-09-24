@@ -5,7 +5,14 @@ const INPUT = {
   clashes: [{ summary: "scaling debated", topic: "Scaling" }],
   date: "2026-09-16",
   missed: [{ authorLine: "@star", text: "new kernel post" }],
-  resolutions: [{ evidence: "shipped", outcome: "TRUE", text: "Grok ships" }],
+  resolutions: [{
+    evidence: "shipped",
+    evidenceAt: Date.parse("2026-09-16T00:00:00Z"),
+    evidenceSource: "https://example.com/source",
+    evidenceVerified: false,
+    outcome: "TRUE",
+    text: "Grok ships",
+  }],
   reviewsDue: 3,
 };
 
@@ -32,7 +39,9 @@ describe("paper", () => {
     const md = renderPaperMarkdown(buildMorningPaper(INPUT, 1));
     expect(md).toContain("# Morning paper · 2026-09-16");
     expect(md).toContain("## Resolved overnight");
-    expect(md).toContain("- TRUE: Grok ships (shipped)");
+    expect(md).toContain(
+      "- TRUE: Grok ships — model output (unverified); source: https://example.com/source; observed: 2026-09-16T00:00:00.000Z; evidence: shipped",
+    );
   });
 
   it("flattens to speech", () => {

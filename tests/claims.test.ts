@@ -19,20 +19,41 @@ async function* scripted(text: string): AsyncGenerator<GrokEvent, void, void> {
 const quiet = new ThrottleQueue({ baseDelayMs: 1, maxAttempts: 1, minIntervalMs: 0, sleep: async () => undefined });
 
 describe("claims", () => {
-  it("parses verdicts with evidence", () => {
-    expect(parseVerdict("CONFIRMED: shipped in 4.8")).toEqual({ evidence: "shipped in 4.8", status: "fresh" });
-    expect(parseVerdict("evolved, partial rollout")).toEqual({ evidence: "partial rollout", status: "evolving" });
-    expect(parseVerdict("DEAD")).toEqual({ evidence: "", status: "dead" });
-    expect(parseVerdict("mumbling")).toEqual({ evidence: "mumbling", status: "evolving" });
+  it("parses verdicts only with a strong source", () => {
+    expect(parseVerdict("CONFIRMED\nSource: https://example.com/claim\nEvidence: shipped in 4.8")).toEqual({
+      evidence: "shipped in 4.8",
+      source: "https://example.com/claim",
+      status: "fresh",
+    });
+    expect(parseVerdict("EVOLVED\nSource: https://example.com/claim\nEvidence: partial rollout")).toEqual({
+      evidence: "partial rollout",
+      source: "https://example.com/claim",
+      status: "evolving",
+    });
+    expect(parseVerdict("DEAD\nSource: https://example.com/claim\nEvidence: superseded")).toEqual({
+      evidence: "superseded",
+      source: "https://example.com/claim",
+      status: "dead",
+    });
+    expect(parseVerdict("CONFIRMED: no source")).toEqual({ evidence: "no source", source: "", status: "evolving" });
+    expect(parseVerdict("CONFIRMED\nSource: https://example.com/no-evidence")).toEqual({
+      evidence: "",
+      source: "https://example.com/no-evidence",
+      status: "evolving",
+    });
+    expect(parseVerdict("mumbling")).toEqual({ evidence: "mumbling", source: "", status: "evolving" });
   });
 
   it("marks partial and oversized verdicts as uncertain", () => {
-    expect(parseVerdict("")).toEqual({ evidence: "", status: "evolving" });
-    expect(parseVerdict("x".repeat(20_001))).toEqual({ evidence: "", status: "evolving" });
+    expect(parseVerdict("")).toEqual({ evidence: "", source: "", status: "evolving" });
+    expect(parseVerdict("x".repeat(20_001))).toEqual({ evidence: "", source: "", status: "evolving" });
   });
 
   it("verifies claims and persists verdicts", async () => {
-    const replies = ["CONFIRMED: yes", "DEAD: superseded"];
+    const replies = [
+      "CONFIRMED\nSource: https://example.com/one\nEvidence: yes",
+      "DEAD\nSource: https://example.com/two\nEvidence: superseded",
+    ];
     const send = () => scripted(replies.shift() ?? "CONFIRMED: x");
     await recordClaims(
       [
@@ -50,7 +71,12 @@ describe("claims", () => {
     );
     expect(result).toEqual({ checked: 2, dead: 1, evolved: 0 });
     const db = await openDb(indexedDB);
-    expect(await getRecord(db, "claims", "c2")).toMatchObject({ evidence: "superseded", status: "dead" });
+    expect(await getRecord(db, "claims", "c2")).toMatchObject({
+      evidence: "superseded",
+      evidenceSource: "https://example.com/two",
+      evidenceVerified: false,
+      status: "dead",
+    });
     db.close();
   });
 

@@ -1,4 +1,5 @@
 import { getRecord, openDb, putRecords, type PredictionRecord, type PredictionStatus } from "./db.js";
+import { extractModelEvidence } from "./evidence.js";
 import { collectBriefText, type GrokSend } from "./briefs.js";
 import { ThrottleQueue } from "./queue.js";
 
@@ -36,23 +37,33 @@ export function parsePredictionLines(reply: string): ExtractedPrediction[] {
   return predictions;
 }
 
+export interface ResolutionResult {
+  evidence: string;
+  source: string;
+  status: PredictionStatus;
+}
+
 export function buildResolvePrompt(prediction: string): string {
   return [
     "Has the prediction below come true as of today?",
     "Start with exactly one word: TRUE, FALSE, or UNCLEAR.",
-    "Follow with one line of evidence.",
+    "Then provide Source: followed by one HTTP(S) URL and Evidence: followed by one line.",
+    "If you cannot provide a source, use UNCLEAR and explain why.",
     "",
     `Prediction: ${prediction.slice(0, 1000)}`,
   ].join("\n");
 }
 
-export function parseResolution(reply: string): { evidence: string; status: PredictionStatus } {
-  if (reply.length > MAX_MODEL_OUTPUT_LENGTH) return { evidence: "", status: "open" };
+export function parseResolution(reply: string): ResolutionResult {
+  if (reply.length > MAX_MODEL_OUTPUT_LENGTH) return { evidence: "", source: "", status: "open" };
   const match = /^\s*(TRUE|FALSE|UNCLEAR)\b[\s:,\-]*(.*)$/is.exec(reply.trim());
-  if (match?.[1] === undefined) return { evidence: reply.trim().slice(0, 500), status: "open" };
+  const evidence = extractModelEvidence(reply, match?.[2] ?? reply.trim());
+  if (match?.[1] === undefined || !evidence.sourceIsStrong || evidence.text === "") {
+    return { evidence: evidence.text, source: evidence.source, status: "open" };
+  }
   const word = match[1].toLowerCase();
   const status: PredictionStatus = word === "true" ? "resolved-true" : word === "false" ? "resolved-false" : "open";
-  return { evidence: (match[2] ?? "").trim().slice(0, 500), status };
+  return { evidence: evidence.text, source: evidence.source, status };
 }
 
 export interface ResolveDeps {
@@ -89,9 +100,15 @@ export async function resolvePredictions(predictions: PredictionRecord[], deps: 
         collectBriefText(deps.send, { conversationId: deps.conversationId, message: buildResolvePrompt(prediction.text) }),
       );
       const resolution = parseResolution(reply);
-      await putRecords(db, "predictions", [
-        { ...prediction, checkedAt: now, evidence: resolution.evidence, status: resolution.status },
-      ]);
+      await putRecords(db, "predictions", [{
+        ...prediction,
+        checkedAt: now,
+        evidence: resolution.evidence,
+        evidenceAt: now,
+        evidenceSource: resolution.source,
+        evidenceVerified: false,
+        status: resolution.status,
+      }]);
       if (resolution.status === "open") result.stillOpen += 1;
       else result.resolved += 1;
       deps.onResolve?.(prediction.id, resolution.status);
