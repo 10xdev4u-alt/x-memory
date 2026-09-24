@@ -1,4 +1,5 @@
-import { execFileSync } from "node:child_process";
+import { spawn } from "node:child_process";
+import { once } from "node:events";
 import { createHash } from "node:crypto";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -36,43 +37,72 @@ const extensionId = [...createHash("sha256").update(extensionPath).digest("hex")
   .map((nibble) => "abcdefghijklmnop"[Number.parseInt(nibble, 16)])
   .join("");
 const userDataDir = mkdtempSync(join(tmpdir(), "x-memory-chromium-"));
-
 const hasPanelDom = (dom) => dom.includes("<title>x-memory</title>") && dom.includes('id="zone-nav"') && dom.includes('id="library"');
+const browser = spawn(executable, [
+  "--headless=new",
+  "--no-sandbox",
+  "--disable-gpu",
+  "--disable-dev-shm-usage",
+  "--no-first-run",
+  "--no-default-browser-check",
+  "--disable-extensions-except=" + extensionPath,
+  "--load-extension=" + extensionPath,
+  "--user-data-dir=" + userDataDir,
+  "--dump-dom",
+  `chrome-extension://${extensionId}/src/panel.html`
+], {
+  env: {
+    PATH: process.env.PATH ?? "",
+    HOME: userDataDir,
+    XDG_CONFIG_HOME: userDataDir
+  },
+  stdio: ["ignore", "pipe", "pipe"]
+});
+
+let stdout = "";
+let stderr = "";
+let browserError;
+browser.stdout.on("data", (chunk) => {
+  stdout += chunk.toString();
+});
+browser.stderr.on("data", (chunk) => {
+  stderr += chunk.toString();
+});
+browser.once("error", (error) => {
+  browserError = error;
+});
 
 try {
-  const dom = execFileSync(executable, [
-    "--headless=new",
-    "--no-sandbox",
-    "--disable-gpu",
-    "--disable-dev-shm-usage",
-    "--no-first-run",
-    "--no-default-browser-check",
-    "--disable-extensions-except=" + extensionPath,
-    "--load-extension=" + extensionPath,
-    "--user-data-dir=" + userDataDir,
-    "--dump-dom",
-    `chrome-extension://${extensionId}/src/panel.html`
-  ], {
-    encoding: "utf8",
-    env: {
-      PATH: process.env.PATH ?? "",
-      HOME: userDataDir,
-      XDG_CONFIG_HOME: userDataDir
-    },
-    timeout: 15000,
-    stdio: ["ignore", "pipe", "pipe"]
+  await new Promise((resolveResult, reject) => {
+    let settled = false;
+    const finish = (error) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      if (error) reject(error);
+      else resolveResult();
+    };
+    const timeout = setTimeout(() => {
+      finish(hasPanelDom(stdout) ? undefined : new Error(`Chromium extension smoke timed out: ${stderr}`));
+    }, 15000);
+    browser.stdout.on("data", () => {
+      if (hasPanelDom(stdout)) finish();
+    });
+    browser.once("exit", (code, signal) => {
+      if (browserError) finish(browserError);
+      else if (hasPanelDom(stdout)) finish();
+      else finish(new Error(`Chromium extension smoke exited before panel load: code=${code} signal=${signal} stderr=${stderr}`));
+    });
   });
-  if (!hasPanelDom(dom)) {
+  if (!hasPanelDom(stdout)) {
     throw new Error("extension panel did not load correctly");
   }
   console.log("extension panel loaded from unpacked dist");
-} catch (error) {
-  if (hasPanelDom(String(error.stdout ?? ""))) {
-    console.log("extension panel loaded from unpacked dist");
-  } else {
-    const output = `${error.stdout ?? ""}\n${error.stderr ?? ""}`.trim();
-    throw new Error(`Chromium extension smoke failed${output ? `: ${output}` : ""}`);
-  }
 } finally {
+  if (browser.exitCode === null && browser.signalCode === null) {
+    browser.kill("SIGTERM");
+    await Promise.race([once(browser, "exit"), new Promise((resolveExit) => setTimeout(resolveExit, 2000))]);
+    if (browser.exitCode === null && browser.signalCode === null) browser.kill("SIGKILL");
+  }
   rmSync(userDataDir, { recursive: true, force: true });
 }
