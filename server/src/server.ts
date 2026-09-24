@@ -187,6 +187,7 @@ export function ownerHash(key: string): string {
 export interface ApiOptions {
   allowedOrigins?: ReadonlySet<string>;
   keys: Set<string>;
+  moderatorKeys?: ReadonlySet<string>;
   maxBodyBytes?: number;
   rateLimitPerMinute?: number;
 }
@@ -394,6 +395,10 @@ export function createApiServer(store: ApiStore, options: ApiOptions): Server {
       if (request.method === "GET" && url.pathname === "/v1/reports") {
         if (!options.keys.has(key)) {
           send(response, 401, { error: "unauthorized" });
+          return;
+        }
+        if (options.moderatorKeys === undefined || !options.moderatorKeys.has(key)) {
+          send(response, 403, { error: "moderator scope required" });
           return;
         }
         send(response, 200, { reports: store.reports });
