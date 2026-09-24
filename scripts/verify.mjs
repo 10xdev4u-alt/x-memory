@@ -6,6 +6,7 @@ export const verificationSteps = [
   { name: "typecheck", args: ["run", "typecheck"] },
   { name: "tests", args: ["run", "test"] },
   { name: "extension build", args: ["run", "build"] },
+  { name: "benchmark", args: ["run", "bench"] },
   { name: "server build", args: ["run", "build:server"] },
   { name: "server smoke", args: ["run", "smoke:server"] },
   { name: "extension smoke", args: ["run", "smoke:extension"] },

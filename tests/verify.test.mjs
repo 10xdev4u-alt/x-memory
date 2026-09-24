@@ -12,6 +12,7 @@ describe("local verification command", () => {
       ["run", "typecheck"],
       ["run", "test"],
       ["run", "build"],
+      ["run", "bench"],
       ["run", "build:server"],
       ["run", "smoke:server"],
       ["run", "smoke:extension"],
