@@ -7,6 +7,7 @@ Least privilege. Every entry below names its job. New entries need sign-off in t
 | Host | Job |
 |---|---|
 | `https://x.com/*` | Reserved for user-triggered flows that use an approved X boundary. Private GraphQL operation discovery is blocked from release. |
+| `http://127.0.0.1/*` | Local public API for explicitly invoked publishing, deletion, and abuse-report submission. |
 
 ## Permissions
 
