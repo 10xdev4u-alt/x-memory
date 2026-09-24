@@ -1,4 +1,4 @@
-import { allRecords, clearStore, openDb, putRecords, type BriefRecord, type MediaRecord, type PostRecord } from "./db.js";
+import { allRecords, openDb, putRecords, replaceCorpus, type BriefRecord, type MediaRecord, type PostRecord } from "./db.js";
 import { bundleCorpus, bundleFromJson, bundleToJson, type ExportBundle } from "./export.js";
 
 export interface BackupRestoreResult {
@@ -22,12 +22,10 @@ export async function restoreBackup(
 ): Promise<BackupRestoreResult> {
   const bundle: ExportBundle = bundleFromJson(raw);
   const db = await openDb(deps.dbFactory ?? indexedDB, deps.dbName);
-  await clearStore(db, "posts");
-  await clearStore(db, "briefs");
-  await clearStore(db, "media");
-  await putRecords(db, "posts", bundle.posts);
-  await putRecords(db, "briefs", bundle.briefs);
-  await putRecords(db, "media", bundle.media);
-  db.close();
-  return { briefs: bundle.briefs.length, media: bundle.media.length, posts: bundle.posts.length };
+  try {
+    await replaceCorpus(db, { briefs: bundle.briefs, media: bundle.media, posts: bundle.posts });
+    return { briefs: bundle.briefs.length, media: bundle.media.length, posts: bundle.posts.length };
+  } finally {
+    db.close();
+  }
 }

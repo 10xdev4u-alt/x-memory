@@ -143,6 +143,48 @@ export function putRecords(db: IDBDatabase, store: StoreName, records: unknown[]
   });
 }
 
+export interface CorpusReplacement {
+  briefs: unknown[];
+  media: unknown[];
+  posts: unknown[];
+}
+
+export function replaceCorpus(db: IDBDatabase, replacement: CorpusReplacement): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const stores: CorpusReplacement = replacement;
+    const tx = db.transaction(["posts", "briefs", "media"], "readwrite");
+    let settled = false;
+    const fail = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      try {
+        tx.abort();
+      } catch {
+        reject(error instanceof Error ? error : new Error("corpus replacement failed"));
+        return;
+      }
+      reject(error instanceof Error ? error : new Error("corpus replacement failed"));
+    };
+    tx.oncomplete = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    tx.onerror = () => fail(tx.error ?? new Error("corpus replacement failed"));
+    tx.onabort = () => fail(tx.error ?? new Error("corpus replacement aborted"));
+    try {
+      tx.objectStore("posts").clear();
+      tx.objectStore("briefs").clear();
+      tx.objectStore("media").clear();
+      for (const record of stores.posts) tx.objectStore("posts").put(record);
+      for (const record of stores.briefs) tx.objectStore("briefs").put(record);
+      for (const record of stores.media) tx.objectStore("media").put(record);
+    } catch (error) {
+      fail(error);
+    }
+  });
+}
+
 export function getRecord<T>(db: IDBDatabase, store: StoreName, key: string): Promise<T | undefined> {
   return transact<T | undefined>(db, store, "readonly", (storage) => storage.get(key));
 }

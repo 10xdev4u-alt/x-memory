@@ -1,5 +1,5 @@
 import { createBackup, restoreBackup } from "../src/lib/backup.js";
-import { countRecords, openDb } from "../src/lib/db.js";
+import { countRecords, openDb, replaceCorpus } from "../src/lib/db.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { indexedDB } from "fake-indexeddb";
 
@@ -52,6 +52,25 @@ describe("backup", () => {
     await expect(restoreBackup("garbage", { dbFactory: indexedDB })).rejects.toThrow();
     const check = await openDb(indexedDB);
     expect(await countRecords(check, "posts")).toBe(0);
+    check.close();
+  });
+
+  it("keeps the old corpus when a replacement write aborts", async () => {
+    const { putRecords } = await import("../src/lib/db.js");
+    const seed = await openDb(indexedDB);
+    await putRecords(seed, "posts", [POST]);
+    await putRecords(seed, "briefs", [{ createdAt: 1, postId: "p1", text: "b" }]);
+    await putRecords(seed, "media", [{ id: "m", kind: "link", postId: "p1", url: "u" }]);
+    seed.close();
+
+    const db = await openDb(indexedDB);
+    await expect(replaceCorpus(db, { briefs: [], media: [{}], posts: [] })).rejects.toThrow();
+    db.close();
+
+    const check = await openDb(indexedDB);
+    expect(await countRecords(check, "posts")).toBe(1);
+    expect(await countRecords(check, "briefs")).toBe(1);
+    expect(await countRecords(check, "media")).toBe(1);
     check.close();
   });
 
