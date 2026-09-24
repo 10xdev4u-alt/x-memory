@@ -15,11 +15,16 @@ jobs:
         with:
           cache: npm
           node-version: 24
-      - run: npm ci
-      - run: npm run typecheck
-      - run: npm test
-      - run: npm run build
+      - run: npm run verify
+      - name: Record verified artifact hashes
+        run: |
+          mkdir -p artifact-hashes
+          find dist dist-server release -type f -print0 | sort -z | xargs -0 sha256sum > artifact-hashes/SHA256SUMS
       - uses: actions/upload-artifact@v4
         with:
-          name: extension-dist
-          path: dist
+          name: verified-artifacts
+          path: |
+            dist
+            dist-server
+            release
+            artifact-hashes
