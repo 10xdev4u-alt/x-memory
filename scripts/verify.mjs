@@ -8,6 +8,7 @@ export const verificationSteps = [
   { name: "extension build", args: ["run", "build"] },
   { name: "server build", args: ["run", "build:server"] },
   { name: "server smoke", args: ["run", "smoke:server"] },
+  { name: "extension smoke", args: ["run", "smoke:extension"] },
   { name: "package", args: ["run", "package"] },
   { name: "dependency audit", args: ["audit", "--audit-level=moderate"] }
 ];
