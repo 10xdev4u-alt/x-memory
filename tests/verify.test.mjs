@@ -16,6 +16,7 @@ describe("local verification command", () => {
       ["run", "build:server"],
       ["run", "smoke:server"],
       ["run", "smoke:extension"],
+      ["run", "smoke:landing"],
       ["run", "package"],
       ["audit", "--audit-level=moderate"]
     ]);

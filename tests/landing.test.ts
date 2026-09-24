@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 
 const page = readFileSync("landing/index.html", "utf8");
 const demo = readFileSync("landing/demo.js", "utf8");
+const robots = readFileSync("landing/robots.txt", "utf8");
+const sitemap = readFileSync("landing/sitemap.xml", "utf8");
 
 describe("landing", () => {
   it("covers every proof point section", () => {
@@ -39,6 +41,9 @@ describe("landing", () => {
   it("ships crawler files and stays featherweight", () => {
     expect(existsSync("landing/robots.txt")).toBe(true);
     expect(existsSync("landing/sitemap.xml")).toBe(true);
+    expect(robots).toContain("User-agent: *");
+    expect(robots).toContain("Allow: /");
+    expect(sitemap).toMatch(/<loc>[^<]+<\/loc>/);
     expect(page).toContain('property="og:title"');
     expect(page).toContain('name="twitter:card"');
     expect(page).toContain('name="theme-color"');
