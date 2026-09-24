@@ -13,8 +13,11 @@ afterEach(async () => {
   servers = [];
 });
 
-async function start(options?: { keys?: string[]; limit?: number }, providedStore?: ApiStore): Promise<string> {
-  const apiOptions = { keys: new Set(options?.keys ?? ["k1"]) };
+async function start(options?: { keys?: string[]; limit?: number; origins?: string[] }, providedStore?: ApiStore): Promise<string> {
+  const apiOptions = {
+    allowedOrigins: new Set(options?.origins ?? []),
+    keys: new Set(options?.keys ?? ["k1"]),
+  };
   const server = createApiServer(
     providedStore ?? memoryStore(),
     options?.limit === undefined ? apiOptions : { ...apiOptions, rateLimitPerMinute: options.limit },
@@ -32,6 +35,29 @@ describe("public api", () => {
     const base = await start();
     const response = await fetch(`${base}/health`);
     expect(response.status).toBe(200);
+  });
+
+  it("enforces the exact browser-origin CORS contract", async () => {
+    const allowed = "chrome-extension://allowed";
+    const base = await start({ origins: [allowed] });
+    const preflight = await fetch(`${base}/v1/collections/c1`, {
+      headers: {
+        origin: allowed,
+        "access-control-request-headers": "authorization, content-type",
+        "access-control-request-method": "PUT",
+      },
+      method: "OPTIONS",
+    });
+    expect(preflight.status).toBe(204);
+    expect(preflight.headers.get("access-control-allow-origin")).toBe(allowed);
+    expect(preflight.headers.get("access-control-allow-methods")).toContain("PUT");
+    expect(preflight.headers.get("access-control-allow-headers")).toContain("Authorization");
+    expect(preflight.headers.get("access-control-allow-credentials")).toBe("true");
+
+    const denied = await fetch(`${base}/health`, { headers: { origin: "https://untrusted.example" } });
+    expect(denied.status).toBe(403);
+    expect(denied.headers.get("access-control-allow-origin")).toBeNull();
+    expect((await fetch(`${base}/health`, { headers: { origin: allowed } })).headers.get("access-control-allow-origin")).toBe(allowed);
   });
 
   it("stores and serves collections with auth", async () => {
