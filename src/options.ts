@@ -30,10 +30,14 @@ document.getElementById("session-check")?.addEventListener("click", () => {
 });
 
 document.getElementById("wipe-data")?.addEventListener("click", () => {
-  void wipeLocalData().then(() => {
-    document.getElementById("wipe-state")?.replaceChildren("Local data wiped.");
-    void renderSession();
-  });
+  void wipeLocalData()
+    .then(() => {
+      document.getElementById("wipe-state")?.replaceChildren("Local data wiped.");
+      void renderSession();
+    })
+    .catch((error: unknown) => {
+      document.getElementById("wipe-state")?.replaceChildren(`Local data wipe failed: ${String(error)}`);
+    });
 });
 
 async function renderTheme(): Promise<void> {

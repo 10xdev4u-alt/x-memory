@@ -8,7 +8,7 @@ beforeEach(() => {
   vi.stubGlobal("chrome", {
     storage: {
       local: {
-        get: async (key: string) => ({ [key]: store.get(key) }),
+        get: async (key?: string) => key === undefined ? Object.fromEntries(store) : ({ [key]: store.get(key) }),
         set: async (entries: Record<string, unknown>) => {
           for (const [key, value] of Object.entries(entries)) store.set(key, value);
         },
@@ -37,6 +37,41 @@ describe("settings", () => {
   it("wipes storage", async () => {
     await writeSession({ checkedAt: 1, state: "active" });
     await wipeLocalData();
+    expect(await readSession()).toEqual({ checkedAt: 0, state: "unknown" });
+  });
+
+  it("reports blocked database deletion without clearing storage", async () => {
+    const request: { onblocked?: () => void } = {};
+    vi.stubGlobal("indexedDB", {
+      databases: async () => [{ name: "x-memory-account" }],
+      deleteDatabase: () => {
+        queueMicrotask(() => request.onblocked?.());
+        return request;
+      }
+    });
+    await writeSession({ checkedAt: 1, state: "active" });
+
+    await expect(wipeLocalData()).rejects.toThrow(/deletion blocked/);
+    expect(await readSession()).toMatchObject({ state: "active" });
+  });
+
+  it("verifies database and storage removal", async () => {
+    let databaseChecks = 0;
+    vi.stubGlobal("indexedDB", {
+      databases: async () => {
+        databaseChecks += 1;
+        return databaseChecks === 1 ? [{ name: "x-memory-account" }] : [];
+      },
+      deleteDatabase: () => {
+        const request: { onsuccess?: () => void } = {};
+        queueMicrotask(() => request.onsuccess?.());
+        return request;
+      }
+    });
+    await writeSession({ checkedAt: 1, state: "active" });
+
+    await wipeLocalData();
+    expect(databaseChecks).toBe(2);
     expect(await readSession()).toEqual({ checkedAt: 0, state: "unknown" });
   });
 });
