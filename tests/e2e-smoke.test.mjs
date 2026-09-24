@@ -16,8 +16,8 @@ describe("runtime smoke coverage", () => {
 
   it("covers the unpacked panel and server health boundary", () => {
     expect(extensionSmoke).toContain("--load-extension=");
-    expect(extensionSmoke).toContain("Target.createTarget");
-    expect(extensionSmoke).toContain("hasZoneNav");
+    expect(extensionSmoke).toContain("--dump-dom");
+    expect(extensionSmoke).toContain('id="zone-nav"');
     expect(serverSmoke).toContain("/health");
     expect(serverSmoke).toContain("body.ok !== true");
   });
