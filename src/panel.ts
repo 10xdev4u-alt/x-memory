@@ -6,7 +6,7 @@ import { postsToMarkdown } from "./lib/export.js";
 import { buildReaderModel, snippet } from "./lib/reader-model.js";
 import { createCollection, forkCollection, listCollections } from "./lib/collections.js";
 import { canShareInline, importSharedPackage, packageCollection, parseSharedLink, shareLink } from "./lib/sharing.js";
-import { getVisibility, setVisibility, visibilityBadge, type Visibility } from "./lib/visibility.js";
+import { canPublish, getVisibility, setVisibility, visibilityBadge, type Visibility } from "./lib/visibility.js";
 import { loopCounts, resolvePost } from "./lib/loops.js";
 import { ensureConversation, GrokError, sendGrokMessage } from "./lib/grok.js";
 import { isPaperDue, readLatestPaper, runPaperJob } from "./lib/paper-job.js";
@@ -283,6 +283,7 @@ async function renderCollections(activeId: string | null): Promise<string | null
 }
 
 async function shareCollection(collectionId: string): Promise<string | undefined> {
+  if (!(await canPublish("collection", collectionId))) return undefined;
   const db = await openDb();
   const collections = await listCollections();
   const collection = collections.find((entry) => entry.id === collectionId);
@@ -317,6 +318,7 @@ async function shareCollection(collectionId: string): Promise<string | undefined
     briefs,
   );
   if (!canShareInline(pkg)) return undefined;
+  if (!(await canPublish("collection", collectionId))) return undefined;
   return shareLink(pkg);
 }
 
