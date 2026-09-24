@@ -10,6 +10,8 @@ XMEM_API_KEYS=key-one,key-two PORT=8787 node dist-server/main.js
 
 Build the server with `tsc -p server/tsconfig.json`. Keys come only from the environment. Reads are public with a shared rate limit. Writes need a bearer key with their own limit.
 
+The server persists objects, owner hashes, and abuse reports to `XMEM_API_PATH` (default `./data/x-memory-api.json`). Writes use a temporary file and atomic rename; invalid or unavailable storage prevents startup. `memoryStore()` remains available for isolated tests.
+
 ## Routes
 
 - `GET /health`

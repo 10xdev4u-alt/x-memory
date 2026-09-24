@@ -1,5 +1,7 @@
 import { createServer as createHttpServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
 
 export interface PublicCollection {
   description?: string;
@@ -36,12 +38,146 @@ export interface ApiStore {
   boards: Map<string, PublicBoard>;
   collections: Map<string, PublicCollection>;
   owners: Map<string, string>;
+  persist(): Promise<void>;
   profiles: Map<string, PublicProfile>;
   reports: AbuseReport[];
 }
 
 export function memoryStore(): ApiStore {
-  return { boards: new Map(), collections: new Map(), owners: new Map(), profiles: new Map(), reports: [] };
+  return {
+    boards: new Map(),
+    collections: new Map(),
+    owners: new Map(),
+    persist: async () => undefined,
+    profiles: new Map(),
+    reports: [],
+  };
+}
+
+interface PersistedState {
+  boards: Array<[string, PublicBoard]>;
+  collections: Array<[string, PublicCollection]>;
+  owners: Array<[string, string]>;
+  profiles: Array<[string, PublicProfile]>;
+  reports: AbuseReport[];
+}
+
+function isStoredEntries(value: unknown, valid: (entry: unknown) => boolean): boolean {
+  return Array.isArray(value) && value.every((entry) => Array.isArray(entry) && entry.length === 2 && typeof entry[0] === "string" && valid(entry[1]));
+}
+
+function isStoredReport(value: unknown): value is AbuseReport {
+  return (
+    isRecord(value) &&
+    typeof value["at"] === "number" &&
+    typeof value["id"] === "string" &&
+    typeof value["kind"] === "string" &&
+    typeof value["reason"] === "string" &&
+    typeof value["reporter"] === "string"
+  );
+}
+
+function isPersistedState(value: unknown): value is PersistedState {
+  return (
+    isRecord(value) &&
+    isStoredEntries(value["collections"], validCollection) &&
+    isStoredEntries(value["profiles"], validProfile) &&
+    isStoredEntries(value["boards"], validBoard) &&
+    isStoredEntries(value["owners"], (entry) => typeof entry === "string") &&
+    Array.isArray(value["reports"]) &&
+    value["reports"].every(isStoredReport)
+  );
+}
+
+function serializeStore(store: ApiStore): PersistedState {
+  return {
+    boards: [...store.boards.entries()],
+    collections: [...store.collections.entries()],
+    owners: [...store.owners.entries()],
+    profiles: [...store.profiles.entries()],
+    reports: store.reports.map((report) => ({ ...report })),
+  };
+}
+
+async function readPersistedState(path: string): Promise<PersistedState | undefined> {
+  let raw: string;
+  try {
+    raw = await readFile(path, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw error;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    throw new Error("public API storage contains invalid JSON");
+  }
+  if (!isPersistedState(parsed)) throw new Error("public API storage has an invalid shape");
+  return parsed;
+}
+
+async function writePersistedState(path: string, state: PersistedState): Promise<void> {
+  await mkdir(dirname(path), { recursive: true });
+  const temporaryPath = `${path}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temporaryPath, JSON.stringify(state), "utf8");
+    await rename(temporaryPath, path);
+  } catch (error) {
+    await rm(temporaryPath, { force: true }).catch(() => undefined);
+    throw error;
+  }
+}
+
+export async function durableStore(path: string): Promise<ApiStore> {
+  const state = await readPersistedState(path);
+  const store = memoryStore();
+  if (state !== undefined) {
+    store.boards = new Map(state.boards);
+    store.collections = new Map(state.collections);
+    store.owners = new Map(state.owners);
+    store.profiles = new Map(state.profiles);
+    store.reports = state.reports.map((report) => ({ ...report }));
+  }
+  store.persist = async () => writePersistedState(path, serializeStore(store));
+  return store;
+}
+
+interface StoreSnapshot {
+  boards: Map<string, PublicBoard>;
+  collections: Map<string, PublicCollection>;
+  owners: Map<string, string>;
+  profiles: Map<string, PublicProfile>;
+  reports: AbuseReport[];
+}
+
+function snapshotStore(store: ApiStore): StoreSnapshot {
+  return {
+    boards: new Map(store.boards),
+    collections: new Map(store.collections),
+    owners: new Map(store.owners),
+    profiles: new Map(store.profiles),
+    reports: [...store.reports],
+  };
+}
+
+function restoreStore(store: ApiStore, snapshot: StoreSnapshot): void {
+  store.boards = snapshot.boards;
+  store.collections = snapshot.collections;
+  store.owners = snapshot.owners;
+  store.profiles = snapshot.profiles;
+  store.reports = snapshot.reports;
+}
+
+async function commitStore(store: ApiStore, action: () => void): Promise<void> {
+  const snapshot = snapshotStore(store);
+  try {
+    action();
+    await store.persist();
+  } catch (error) {
+    restoreStore(store, snapshot);
+    throw error;
+  }
 }
 
 export function ownerHash(key: string): string {
@@ -186,12 +322,17 @@ export function createApiServer(store: ApiStore, options: ApiOptions): Server {
           send(response, 400, { error: "invalid report" });
           return;
         }
-        store.reports.push({
-          at: now,
-          id: body["id"],
-          kind: body["kind"],
-          reason: body["reason"],
-          reporter: ownerHash(key),
+        const reportId = body["id"];
+        const reportKind = body["kind"];
+        const reportReason = body["reason"];
+        await commitStore(store, () => {
+          store.reports.push({
+            at: now,
+            id: reportId,
+            kind: reportKind,
+            reason: reportReason,
+            reporter: ownerHash(key),
+          });
         });
         send(response, 200, { ok: true });
         return;
@@ -255,8 +396,10 @@ export function createApiServer(store: ApiStore, options: ApiOptions): Server {
           send(response, 403, { error: "not the owner" });
           return;
         }
-        map.delete(id);
-        store.owners.delete(docKey);
+        await commitStore(store, () => {
+          map.delete(id);
+          store.owners.delete(docKey);
+        });
         send(response, 200, { ok: true });
         return;
       }
@@ -272,20 +415,26 @@ export function createApiServer(store: ApiStore, options: ApiOptions): Server {
         return;
       }
       if (kind === "collections" && validCollection(body)) {
-        store.collections.set(id, body);
-        store.owners.set(docKey, ownerHash(key));
+        await commitStore(store, () => {
+          store.collections.set(id, body);
+          store.owners.set(docKey, ownerHash(key));
+        });
         send(response, 200, { ok: true });
         return;
       }
       if (kind === "profiles" && validProfile(body)) {
-        store.profiles.set(id, body);
-        store.owners.set(docKey, ownerHash(key));
+        await commitStore(store, () => {
+          store.profiles.set(id, body);
+          store.owners.set(docKey, ownerHash(key));
+        });
         send(response, 200, { ok: true });
         return;
       }
       if (kind === "boards" && validBoard(body)) {
-        store.boards.set(id, body);
-        store.owners.set(docKey, ownerHash(key));
+        await commitStore(store, () => {
+          store.boards.set(id, body);
+          store.owners.set(docKey, ownerHash(key));
+        });
         send(response, 200, { ok: true });
         return;
       }
