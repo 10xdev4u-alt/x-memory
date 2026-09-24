@@ -16,8 +16,9 @@ describe("runtime smoke coverage", () => {
 
   it("covers the unpacked panel and server health boundary", () => {
     expect(extensionSmoke).toContain("--load-extension=");
-    expect(extensionSmoke).toContain("--dump-dom");
-    expect(extensionSmoke).toContain('id="zone-nav"');
+    expect(extensionSmoke).toContain("playwright-core");
+    expect(extensionSmoke).toContain("launchPersistentContext");
+    expect(extensionSmoke).toContain("page.goto");
     expect(serverSmoke).toContain("/health");
     expect(serverSmoke).toContain("body.ok !== true");
   });
