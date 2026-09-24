@@ -3,61 +3,88 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#000000" />
-    <title>x-memory — remember what X forgets</title>
-    <meta name="description" content="x-memory turns X bookmarks and likes into living knowledge. Briefs, claim tracking, and a Morning Paper. No extra login, no keys." />
-    <meta property="og:title" content="x-memory — remember what X forgets" />
-    <meta property="og:description" content="Bookmarks and likes become briefs, tracked claims, and a Morning Paper. No extra login, no keys." />
+    <meta name="theme-color" content="#0b1117" />
+    <title>x-memory — a local memory layer for X</title>
+    <meta name="description" content="x-memory keeps a local, searchable memory layer for the X posts you save. Briefs and a Morning Paper are available in the extension." />
+    <meta property="og:title" content="x-memory — a local memory layer for X" />
+    <meta property="og:description" content="Keep saved X posts searchable locally, then turn them into briefs and a Morning Paper." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary" />
-    <meta name="twitter:title" content="x-memory — remember what X forgets" />
-    <meta name="twitter:description" content="Bookmarks and likes become briefs, tracked claims, and a Morning Paper." />
+    <meta name="twitter:title" content="x-memory — a local memory layer for X" />
+    <meta name="twitter:description" content="Keep saved X posts searchable locally, then turn them into briefs and a Morning Paper." />
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <header>
-      <p class="brand">x-memory</p>
-      <h1>X is a river. This remembers it.</h1>
-      <p class="lede">Your bookmarks and likes become briefs, tracked claims, resolved predictions, and a Morning Paper. It rides the X login you already have. Nothing else to set up.</p>
-      <p><a class="cta" href="#demo">Watch it work in sixty seconds</a></p>
+    <a class="skip-link" href="#main-content">Skip to content</a>
+    <header id="top" class="hero">
+      <nav class="topbar" aria-label="Primary">
+        <a class="brand" href="#top">x-memory</a>
+        <a class="topbar-link" href="#proof-privacy">Privacy</a>
+      </nav>
+      <p class="eyebrow">Local-first memory for the posts you choose to keep</p>
+      <h1>Keep the useful parts of X close.</h1>
+      <p class="lede">x-memory is a browser extension for saving, searching, and reflecting on the X posts you choose. Your corpus stays on your device until you explicitly share an object.</p>
+      <p><a class="cta" href="#demo">Explore the illustrative demo</a></p>
+      <div class="hero-note" role="note">
+        <strong>Built for the boundary you can inspect.</strong>
+        <span>No hosted account is required for the local extension.</span>
+      </div>
     </header>
-    <main>
-      <section id="demo" aria-label="Demo">
-        <h2>Sixty seconds, no account needed</h2>
-        <p>Press play. A sample corpus syncs, earns briefs, and becomes a Morning Paper.</p>
-        <div id="demo-player" role="region" aria-label="Interactive demo">
+    <main id="main-content">
+      <section id="demo" class="feature feature-demo" aria-labelledby="demo-title">
+        <div>
+          <p class="eyebrow">Illustrative demo</p>
+          <h2 id="demo-title">See the shape of a memory layer.</h2>
+          <p>This local demo uses sample text. It does not connect to X, sync an account, or call a model.</p>
+        </div>
+        <div id="demo-player" role="region" aria-label="Interactive illustrative demo">
           <ol id="demo-steps"></ol>
           <p id="demo-status" role="status">Demo ready.</p>
-          <button id="demo-play" type="button">Play demo</button>
+          <button id="demo-play" type="button">Play illustrative demo</button>
         </div>
       </section>
-      <section id="proof-memory" aria-label="Memory">
-        <h2>Saves stop rotting</h2>
-        <p>Every bookmark gets a brief that says why it mattered. Claims get rechecked. Predictions get resolved with receipts. The graveyard becomes a garden.</p>
+      <section id="proof-memory" class="feature" aria-labelledby="memory-title">
+        <div>
+          <p class="eyebrow">Local corpus</p>
+          <h2 id="memory-title">Saves stay searchable.</h2>
+          <p>Browse saved posts, filter them, and keep briefs beside the source text. Search runs against the local corpus.</p>
+        </div>
       </section>
-      <section id="proof-session" aria-label="No setup">
-        <h2>No login, no keys, no Premium</h2>
-        <p>Install, open the panel, sync. The extension uses your active X session and your account's Grok access. Folders stay a Premium feature elsewhere. Here, organization is automatic.</p>
+      <section id="proof-session" class="feature" aria-labelledby="session-title">
+        <div>
+          <p class="eyebrow">User-controlled session</p>
+          <h2 id="session-title">Use the session you already have.</h2>
+          <p>When you choose an X flow, the extension uses your active X session. It does not ask for a second account or an API key.</p>
+        </div>
       </section>
-      <section id="proof-paper" aria-label="Morning paper">
-        <h2>A paper, not a feed</h2>
-        <p>Overnight, the corpus gets read against the last day on X. You wake up to what resolved, what you missed from trusted authors, and one disagreement worth your coffee. Listen to it on the way in.</p>
+      <section id="proof-paper" class="feature" aria-labelledby="paper-title">
+        <div>
+          <p class="eyebrow">Reflection tools</p>
+          <h2 id="paper-title">Turn saves into a quieter review.</h2>
+          <p>Read saved posts, generate a brief, or assemble a Morning Paper from the local corpus.</p>
+        </div>
       </section>
-      <section id="proof-privacy" aria-label="Privacy">
-        <h2>Yours, on your machine</h2>
-        <p>Corpus, briefs, and settings live in your browser. Nothing phones home. Diagnostics stay off unless you flip one toggle. Read the full policy in the repository.</p>
+      <section id="proof-privacy" class="feature feature-privacy" aria-labelledby="privacy-title">
+        <div>
+          <p class="eyebrow">Privacy by default</p>
+          <h2 id="privacy-title">Your memory stays local by default.</h2>
+          <p>Corpus data, settings, and backups stay in your browser. X requests occur in the sync, brief, and paper flows the extension exposes. Explicit sharing can send a selected object to a configured API.</p>
+          <a class="text-link" href="../docs/PRIVACY.md">Read the privacy policy</a>
+        </div>
       </section>
-      <section id="install" aria-label="Install">
-        <h2>Install</h2>
-        <ol>
-          <li>Install from the Chrome Web Store.</li>
-          <li>Open the side panel and sync.</li>
-          <li>Read your first Morning Paper.</li>
-        </ol>
+      <section id="install" class="feature feature-install" aria-labelledby="install-title">
+        <div>
+          <p class="eyebrow">Build from source</p>
+          <h2 id="install-title">Run the extension locally.</h2>
+          <p>There is no hosted install claim here. Clone the repository, install dependencies, build the extension, and load the unpacked build in Chrome.</p>
+          <pre><code>npm ci
+npm run build
+npm run smoke:extension</code></pre>
+        </div>
       </section>
     </main>
     <footer>
-      <p>x-memory. Built in the open, one reviewed PR at a time.</p>
+      <p>x-memory. A local memory layer, reviewed in the open.</p>
     </footer>
     <script src="demo.js" defer></script>
   </body>
