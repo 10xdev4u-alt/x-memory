@@ -1,6 +1,7 @@
 import {
   classifyGrokStatus,
   ensureConversation,
+  extractText,
   grokBody,
   grokHeaders,
   GrokError,
@@ -77,7 +78,18 @@ describe("grok pipe", () => {
     const events = await collect(MESSAGE, fetchImpl as unknown as typeof fetch);
     expect(seen).toEqual([["https://grok.x.com/2/grok/add_response.json", "POST", "req-1"]]);
     expect(events[events.length - 1]).toMatchObject({ fullText: "Hello", type: "done" });
-    expect(events.slice(0, -1).every((event) => event.type === "text")).toBe(true);
+    expect(events.slice(0, -1)).toEqual([
+      { delta: "Hel", type: "text" },
+      { delta: "lo", type: "text" },
+    ]);
+  });
+
+  it("rejects malformed and unexpected structured payloads", () => {
+    expect(extractText('data: {"text":"valid"}\ndata: {"delta":" delta"}\n')).toBe("valid delta");
+    expect(extractText('data: {"text":"bad","unexpected":true}\n')).toBe("");
+    expect(extractText("data: not-json\n")).toBe("");
+    expect(extractText('data: {"text":42}\n')).toBe("");
+    expect(extractText('data: ["text"]\n')).toBe("");
   });
 
   it("throws quota errors with bodies", async () => {
@@ -109,6 +121,16 @@ describe("grok pipe", () => {
     const id = await ensureConversation({ cookie: "ct0=x", fetchImpl: fetchImpl as unknown as typeof fetch });
     expect(id).toBe("conv-1");
     expect(seen[0]).toContain("/q9/CreateGrokConversation");
+  });
+
+  it("rejects malformed conversation payloads", async () => {
+    const { saveOps, saveBearer } = await import("../src/lib/healer.js");
+    await saveOps([{ kind: "mutation", operationName: "CreateGrokConversation", queryId: "q10" }]);
+    await saveBearer("bearer-1");
+    const fetchImpl = vi.fn().mockImplementation(async () => new Response(JSON.stringify({ data: { create_grok_conversation: { conversation_id: 42 } } })));
+    await expect(ensureConversation({ cookie: "ct0=x", fetchImpl: fetchImpl as unknown as typeof fetch })).rejects.toMatchObject({
+      kind: "server",
+    });
   });
 
   it("refuses without healed operations", async () => {

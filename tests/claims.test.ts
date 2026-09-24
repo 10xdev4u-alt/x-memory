@@ -26,6 +26,11 @@ describe("claims", () => {
     expect(parseVerdict("mumbling")).toEqual({ evidence: "mumbling", status: "evolving" });
   });
 
+  it("marks partial and oversized verdicts as uncertain", () => {
+    expect(parseVerdict("")).toEqual({ evidence: "", status: "evolving" });
+    expect(parseVerdict("x".repeat(20_001))).toEqual({ evidence: "", status: "evolving" });
+  });
+
   it("verifies claims and persists verdicts", async () => {
     const replies = ["CONFIRMED: yes", "DEAD: superseded"];
     const send = () => scripted(replies.shift() ?? "CONFIRMED: x");

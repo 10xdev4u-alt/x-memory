@@ -3,6 +3,8 @@ import { tokenize } from "./search.js";
 import { collectBriefText, type GrokSend } from "./briefs.js";
 import { ThrottleQueue } from "./queue.js";
 
+const MAX_MODEL_OUTPUT_LENGTH = 20_000;
+
 export interface CandidatePost {
   authorHandle: string;
   id: string;
@@ -63,6 +65,7 @@ export function buildJudgePrompt(a: string, b: string): string {
 }
 
 export function parseJudgeVerdict(reply: string): PairVerdict {
+  if (reply.length > MAX_MODEL_OUTPUT_LENGTH) return { summary: "", verdict: "unrelated" };
   const match = /^\s*(AGREE|DISAGREE|UNRELATED)\b[\s:,\-]*(.*)$/is.exec(reply.trim());
   if (match?.[1] === undefined) return { summary: reply.trim().slice(0, 500), verdict: "unrelated" };
   const word = match[1].toLowerCase();

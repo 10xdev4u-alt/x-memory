@@ -37,6 +37,10 @@ describe("debates", () => {
     expect(parseJudgeVerdict("rambling")).toEqual({ summary: "rambling", verdict: "unrelated" });
   });
 
+  it("rejects oversized judge output", () => {
+    expect(parseJudgeVerdict("x".repeat(20_001))).toEqual({ summary: "", verdict: "unrelated" });
+  });
+
   it("judges a pair through Grok", async () => {
     const verdict = await judgePair(SCALING_UP, SCALING_DOWN, () => scripted("DISAGREE: scaling debate"), "c");
     expect(verdict).toEqual({ summary: "scaling debate", verdict: "disagree" });

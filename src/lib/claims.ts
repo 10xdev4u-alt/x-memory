@@ -2,6 +2,8 @@ import { getRecord, openDb, putRecords, type ClaimRecord, type ClaimStatus } fro
 import { collectBriefText, type GrokSend } from "./briefs.js";
 import { ThrottleQueue } from "./queue.js";
 
+const MAX_MODEL_OUTPUT_LENGTH = 20_000;
+
 export function buildVerifyPrompt(claim: string): string {
   return [
     "Check whether the claim below still holds today.",
@@ -13,6 +15,7 @@ export function buildVerifyPrompt(claim: string): string {
 }
 
 export function parseVerdict(reply: string): { evidence: string; status: ClaimStatus } {
+  if (reply.length > MAX_MODEL_OUTPUT_LENGTH) return { evidence: "", status: "evolving" };
   const match = /^\s*(CONFIRMED|EVOLVED|DEAD)\b[\s:,\-]*(.*)$/is.exec(reply.trim());
   if (match?.[1] === undefined) return { evidence: reply.trim().slice(0, 500), status: "evolving" };
   const word = match[1].toLowerCase();

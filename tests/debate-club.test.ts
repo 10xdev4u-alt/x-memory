@@ -46,6 +46,10 @@ describe("debate-club", () => {
     expect(parseDebate("CASE FOR: only one side")).toBeUndefined();
   });
 
+  it("rejects oversized debate output", () => {
+    expect(parseDebate("CASE FOR: " + "x".repeat(20_001) + "\nCASE AGAINST: no")).toBeUndefined();
+  });
+
   it("stages debates through Grok", async () => {
     const debate = await stageDebate(
       "Scaling",

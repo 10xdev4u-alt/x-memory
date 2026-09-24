@@ -2,6 +2,7 @@ import { collectBriefText, type GrokSend } from "./briefs.js";
 import { ThrottleQueue } from "./queue.js";
 
 const VERDICTS_KEY = "xmem.verdicts";
+const MAX_MODEL_OUTPUT_LENGTH = 20_000;
 
 export type DebateWinner = "a" | "b" | "draw";
 
@@ -40,6 +41,7 @@ export function buildDebatePrompt(topic: string, textA: string, textB: string): 
 }
 
 export function parseDebate(reply: string): [DebateCase, DebateCase] | undefined {
+  if (reply.length > MAX_MODEL_OUTPUT_LENGTH) return undefined;
   const forMatch = /CASE FOR\s*[:\-]?\s*([\s\S]+?)(?=CASE AGAINST|$)/i.exec(reply);
   const againstMatch = /CASE AGAINST\s*[:\-]?\s*([\s\S]+)$/i.exec(reply);
   if (forMatch?.[1] === undefined || againstMatch?.[1] === undefined) return undefined;

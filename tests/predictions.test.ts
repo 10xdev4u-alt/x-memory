@@ -40,6 +40,11 @@ describe("predictions", () => {
     expect(parseResolution("rambling")).toEqual({ evidence: "rambling", status: "open" });
   });
 
+  it("rejects oversized prediction output", () => {
+    expect(parsePredictionLines("- " + "x".repeat(20_001))).toEqual([]);
+    expect(parseResolution("x".repeat(20_001))).toEqual({ evidence: "", status: "open" });
+  });
+
   it("resolves open predictions and persists", async () => {
     const replies = ["TRUE: done", "FALSE: missed"];
     const send = () => scripted(replies.shift() ?? "UNCLEAR");

@@ -2,6 +2,8 @@ import { getRecord, openDb, putRecords, type PredictionRecord, type PredictionSt
 import { collectBriefText, type GrokSend } from "./briefs.js";
 import { ThrottleQueue } from "./queue.js";
 
+const MAX_MODEL_OUTPUT_LENGTH = 20_000;
+
 export interface ExtractedPrediction {
   targetDate?: number;
   text: string;
@@ -19,6 +21,7 @@ export function buildExtractPrompt(postText: string, authorHandle: string): stri
 }
 
 export function parsePredictionLines(reply: string): ExtractedPrediction[] {
+  if (reply.length > MAX_MODEL_OUTPUT_LENGTH) return [];
   const predictions: ExtractedPrediction[] = [];
   for (const line of reply.split("\n")) {
     const match = /^-\s+(.+?)(?:\s+\(by\s+(\d{4}-\d{2}-\d{2})\))?\s*$/.exec(line.trim());
@@ -44,6 +47,7 @@ export function buildResolvePrompt(prediction: string): string {
 }
 
 export function parseResolution(reply: string): { evidence: string; status: PredictionStatus } {
+  if (reply.length > MAX_MODEL_OUTPUT_LENGTH) return { evidence: "", status: "open" };
   const match = /^\s*(TRUE|FALSE|UNCLEAR)\b[\s:,\-]*(.*)$/is.exec(reply.trim());
   if (match?.[1] === undefined) return { evidence: reply.trim().slice(0, 500), status: "open" };
   const word = match[1].toLowerCase();
