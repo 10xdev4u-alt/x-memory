@@ -1,4 +1,4 @@
-import { getRecord, putRecords, type AuthorRecord } from "./db.js";
+import { allRecords, getRecord, putRecords, type AuthorRecord, type PostRecord } from "./db.js";
 
 export interface AuthorSignal {
   authorHandle: string;
@@ -23,20 +23,26 @@ export async function upsertAuthors(db: IDBDatabase, signals: AuthorSignal[]): P
     group.push(signal);
     byId.set(signal.authorId, group);
   }
+  const posts = await allRecords<PostRecord>(db, "posts");
+  const postsByAuthor = new Map<string, PostRecord[]>();
+  for (const post of posts) {
+    const group = postsByAuthor.get(post.authorId) ?? [];
+    group.push(post);
+    postsByAuthor.set(post.authorId, group);
+  }
   const now = Date.now();
   for (const [authorId, group] of byId) {
     const latest = group[group.length - 1];
     if (latest === undefined) continue;
     const existing = await getRecord<AuthorRecord>(db, "authors", authorId);
-    const saves = group.filter((signal) => signal.provenance !== "liked").length;
-    const likes = group.filter((signal) => signal.provenance !== "saved").length;
+    const authorPosts = postsByAuthor.get(authorId) ?? [];
     const record: AuthorRecord = {
       handle: latest.authorHandle === "" ? (existing?.handle ?? "") : latest.authorHandle,
       id: authorId,
       lastSeen: now,
-      likeCount: (existing?.likeCount ?? 0) + likes,
+      likeCount: authorPosts.filter((post) => post.provenance === "liked" || post.provenance === "both").length,
       name: latest.authorName === "" ? (existing?.name ?? "") : latest.authorName,
-      saveCount: (existing?.saveCount ?? 0) + saves,
+      saveCount: authorPosts.filter((post) => post.provenance === "saved" || post.provenance === "both").length,
     };
     await putRecords(db, "authors", [record]);
   }
