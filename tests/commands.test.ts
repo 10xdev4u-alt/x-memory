@@ -2,12 +2,11 @@ import { COMMANDS, filterCommands } from "../src/lib/commands.js";
 import { describe, expect, it } from "vitest";
 
 describe("commands", () => {
-  it("registers navigation plus session commands", () => {
+  it("registers navigation plus the session check command", () => {
     expect(COMMANDS.map((command) => command.id)).toEqual([
       "go-library",
       "go-reader",
       "go-paper",
-      "sync-now",
       "check-session",
     ]);
   });

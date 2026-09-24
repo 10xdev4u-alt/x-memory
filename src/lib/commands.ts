@@ -2,7 +2,6 @@ export type CommandId =
   | "go-library"
   | "go-reader"
   | "go-paper"
-  | "sync-now"
   | "check-session";
 
 export interface PanelCommand {
@@ -15,7 +14,6 @@ export const COMMANDS: PanelCommand[] = [
   { hint: "1", id: "go-library", title: "Go to Library" },
   { hint: "2", id: "go-reader", title: "Go to Reader" },
   { hint: "3", id: "go-paper", title: "Go to Paper" },
-  { hint: "s", id: "sync-now", title: "Sync now" },
   { hint: "c", id: "check-session", title: "Check session" },
 ];
 

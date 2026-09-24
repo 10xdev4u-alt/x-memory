@@ -150,9 +150,8 @@ function runCommand(id: CommandId): void {
     case "go-paper":
       activate("paper");
       break;
-    case "sync-now":
     case "check-session":
-      document.dispatchEvent(new CustomEvent("xmem:command", { detail: id }));
+      void renderSessionBanner();
       break;
   }
 }
