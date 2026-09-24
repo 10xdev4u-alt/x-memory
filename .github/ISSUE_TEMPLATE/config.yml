@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Recovery policy
+    url: https://github.com/10xdev4u-alt/x-memory/blob/main/AGENTS.md
+    about: Read the issue-first, branch, review, and merge policy.
