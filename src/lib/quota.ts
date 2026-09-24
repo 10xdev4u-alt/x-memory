@@ -1,3 +1,5 @@
+import type { GrokEvent, GrokMessage } from "./grok.js";
+
 const USAGE_KEY = "xmem.quota.usage";
 
 export interface QuotaBudget {
@@ -75,4 +77,42 @@ export async function guardSend(prompt: string, budget: QuotaBudget, now: number
   if (!status.allowed || estimateInputChars(prompt) > status.remainingChars) {
     throw new QuotaExceededError(status.resetInMs);
   }
+}
+
+class QuotaGate {
+  private tail: Promise<void> = Promise.resolve();
+
+  async acquire(): Promise<() => void> {
+    const previous = this.tail;
+    let release = (): void => undefined;
+    this.tail = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    await previous;
+    return release;
+  }
+}
+
+const gate = new QuotaGate();
+
+export function createQuotaSend(
+  send: (message: GrokMessage) => AsyncGenerator<GrokEvent, void, void>,
+  budget: QuotaBudget = DEFAULT_BUDGET,
+  now: () => number = Date.now,
+): (message: GrokMessage) => AsyncGenerator<GrokEvent, void, void> {
+  return async function* guardedSend(message: GrokMessage): AsyncGenerator<GrokEvent, void, void> {
+    const release = await gate.acquire();
+    let admitted = false;
+    try {
+      await guardSend(message.message, budget, now());
+      admitted = true;
+      for await (const event of send(message)) yield event;
+    } finally {
+      try {
+        if (admitted) await recordUsage(1, estimateInputChars(message.message), now(), budget.windowMs);
+      } finally {
+        release();
+      }
+    }
+  };
 }
