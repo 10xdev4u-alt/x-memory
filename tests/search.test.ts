@@ -1,4 +1,4 @@
-import { SearchIndex, searchLinkPosts, tokenize } from "../src/lib/search.js";
+import { SearchIndex, searchLinkPosts, tokenize, type SearchablePost } from "../src/lib/search.js";
 import { openDb, putRecords } from "../src/lib/db.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { indexedDB } from "fake-indexeddb";
@@ -27,6 +27,23 @@ describe("search", () => {
     index.add(POSTS);
     expect(index.search("kernel attention").map((post) => post.id)).toEqual(["p1"]);
     expect(index.search("attention").map((post) => post.id)).toEqual(["p1", "p3"]);
+  });
+
+  it("removes stale postings when documents are updated or deleted", () => {
+    const index = new SearchIndex();
+    const original: SearchablePost = { authorHandle: "kernels", authorName: "K", createdAt: 30, id: "p1", text: "alpha original" };
+    index.add([original]);
+    expect(index.search("alpha").map((post) => post.id)).toEqual(["p1"]);
+
+    index.add([{ ...original, text: "beta replacement" }]);
+    expect(index.search("alpha")).toEqual([]);
+    expect(index.search("beta").map((post) => post.id)).toEqual(["p1"]);
+    expect(index.remove("p1")).toBe(true);
+    expect(index.search("beta")).toEqual([]);
+    expect(index.remove("p1")).toBe(false);
+
+    index.add([{ ...original, text: "beta replacement" }]);
+    expect(index.search("beta").map((post) => post.id)).toEqual(["p1"]);
   });
 
   it("matches authors", () => {
