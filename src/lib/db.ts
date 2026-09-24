@@ -133,13 +133,46 @@ function transact<T>(db: IDBDatabase, store: StoreName, mode: IDBTransactionMode
   });
 }
 
-export function putRecords(db: IDBDatabase, store: StoreName, records: unknown[]): Promise<void> {
+function runWrite(
+  db: IDBDatabase,
+  stores: StoreName | StoreName[],
+  action: string,
+  run: (tx: IDBTransaction) => void,
+): Promise<void> {
   return new Promise((resolve, reject) => {
-    const tx = db.transaction(store, "readwrite");
+    const tx = db.transaction(stores, "readwrite");
+    let settled = false;
+    const fail = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      const detail = error instanceof Error ? error.message : "transaction aborted";
+      reject(new Error(`${action} failed: ${detail}`));
+    };
+    tx.oncomplete = () => {
+      if (settled) return;
+      settled = true;
+      resolve();
+    };
+    tx.onerror = () => fail(tx.error ?? new Error("transaction error"));
+    tx.onabort = () => fail(tx.error ?? new Error("transaction aborted"));
+    try {
+      run(tx);
+    } catch (error) {
+      try {
+        tx.abort();
+      } catch {
+        fail(error);
+        return;
+      }
+      fail(error);
+    }
+  });
+}
+
+export function putRecords(db: IDBDatabase, store: StoreName, records: unknown[]): Promise<void> {
+  return runWrite(db, store, `put ${store} records`, (tx) => {
     const storage = tx.objectStore(store);
     for (const record of records) storage.put(record);
-    tx.oncomplete = () => resolve();
-    tx.onerror = () => reject(tx.error);
   });
 }
 
@@ -207,19 +240,13 @@ export function countRecords(db: IDBDatabase, store: StoreName): Promise<number>
 }
 
 export function deleteRecord(db: IDBDatabase, store: StoreName, key: string): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(store, "readwrite");
-    const request = tx.objectStore(store).delete(key);
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
+  return runWrite(db, store, `delete ${store} record`, (tx) => {
+    tx.objectStore(store).delete(key);
   });
 }
 
 export function clearStore(db: IDBDatabase, store: StoreName): Promise<void> {
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(store, "readwrite");
-    const request = tx.objectStore(store).clear();
-    request.onsuccess = () => resolve();
-    request.onerror = () => reject(request.error);
+  return runWrite(db, store, `clear ${store} store`, (tx) => {
+    tx.objectStore(store).clear();
   });
 }
